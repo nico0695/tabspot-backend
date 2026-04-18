@@ -5,3 +5,5 @@ dist
 .claude
 .agents
 sdd-lite/
+
+.env
