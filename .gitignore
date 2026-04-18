@@ -7,3 +7,5 @@ dist
 sdd-lite/
 
 .env
+
+coverage

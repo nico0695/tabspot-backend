@@ -1,0 +1,1 @@
+pnpm run lint && pnpm exec tsc --noEmit -p tsconfig.json
