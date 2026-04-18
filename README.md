@@ -25,6 +25,14 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Project documentation
+
+Authoritative project docs live under `docs/`:
+
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — backend architecture, layer rules, API conventions, validation/auth/logging policies.
+- [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) — local setup, GitFlow branching, Conventional Commits, PR workflow, testing rules.
+- [`CLAUDE.md`](./CLAUDE.md) — guidance for working with Claude Code on this repo.
+
 ## Project setup
 
 ```bash

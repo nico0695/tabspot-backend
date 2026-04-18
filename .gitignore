@@ -1,3 +1,7 @@
 sdd-lite
 node_modules
 dist
+
+.claude
+.agents
+sdd-lite/
