@@ -1,8 +1,5 @@
 import type { Config } from 'jest';
 
-// passWithNoTests: true keeps `pnpm test` and `pnpm test:cov` green while the repo has
-// zero specs. Once Stage 6 adds the first __tests__/ file, Jest finds matching specs and
-// the 80% coverageThreshold below auto-activates without any further config edit.
 const config: Config = {
   rootDir: '.',
   roots: ['<rootDir>/src', '<rootDir>/test'],
@@ -36,7 +33,6 @@ const config: Config = {
       statements: 80,
     },
   },
-  passWithNoTests: true,
 };
 
 export default config;
