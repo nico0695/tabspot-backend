@@ -46,8 +46,11 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.15.26",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.0.0",
@@ -79,6 +82,9 @@
         "class-transformer",
         "class-validator"
       ]
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@swc/core"
+    ]
   }
 }

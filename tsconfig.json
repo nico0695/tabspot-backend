@@ -23,6 +23,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
+    "types": ["node", "jest"],
     "paths": {
       "@src/*": ["./src/*"],
       "@modules/*": ["./src/modules/*"],

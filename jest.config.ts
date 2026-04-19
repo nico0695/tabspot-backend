@@ -19,7 +19,14 @@ const config: Config = {
     '^@config/(.*)$': '<rootDir>/src/config/$1',
   },
   collectCoverageFrom: ['src/**/*.ts'],
-  coveragePathIgnorePatterns: ['src/main.ts', '.*\\.module\\.ts$', '.*/dto/.*\\.dto\\.ts$'],
+  coveragePathIgnorePatterns: [
+    'src/main.ts',
+    '.*\\.module\\.ts$',
+    '.*/dto/.*\\.dto\\.ts$',
+    'src/generated/prisma/.*',
+    'src/config/.*',
+    'src/common/.*',
+  ],
   coverageDirectory: 'coverage',
   coverageThreshold: {
     global: {

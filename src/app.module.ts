@@ -5,6 +5,7 @@ import { AppConfigModule } from '@config/config.module';
 import type { Env } from '@config/app.config';
 import { RequestIdMiddleware } from '@common/middlewares/request-id.middleware';
 import { HealthModule } from '@modules/health/health.module';
+import { GenresModule } from '@modules/genres/genres.module';
 import { PrismaModule } from '@src/prisma/prisma.module';
 
 @Module({
@@ -42,6 +43,7 @@ import { PrismaModule } from '@src/prisma/prisma.module';
       },
     }),
     HealthModule,
+    GenresModule,
   ],
 })
 export class AppModule implements NestModule {
