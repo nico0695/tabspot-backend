@@ -9,3 +9,4 @@ sdd-lite/
 .env
 
 coverage
+/src/generated/prisma

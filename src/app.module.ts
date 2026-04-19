@@ -5,10 +5,12 @@ import { AppConfigModule } from '@config/config.module';
 import type { Env } from '@config/app.config';
 import { RequestIdMiddleware } from '@common/middlewares/request-id.middleware';
 import { HealthModule } from '@modules/health/health.module';
+import { PrismaModule } from '@src/prisma/prisma.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    PrismaModule,
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [ConfigService],

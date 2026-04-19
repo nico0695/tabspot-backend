@@ -1,0 +1,191 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [pg_trgm]
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum TabType {
+  CHORDS
+  TAB
+  MIXED
+}
+
+enum Instrument {
+  GUITAR
+  BASS
+  UKULELE
+  PIANO
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum TabStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String     @id @default(uuid()) @db.Uuid
+  supabaseAuthId String     @unique @map("supabase_auth_id") @db.Uuid
+  email          String     @unique @db.Text
+  displayName    String?    @map("display_name") @db.Text
+  role           UserRole   @default(USER) @map("role")
+  status         UserStatus @default(ACTIVE) @map("status")
+  blockedAt      DateTime?  @map("blocked_at") @db.Timestamptz
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  authoredTabs  Tab[]       @relation("TabAuthor")
+  moderatedTabs Tab[]       @relation("TabModerator")
+  tabRatings    TabRating[]
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model Artist {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @db.Text
+  slug      String    @unique @db.Text
+  sortName  String?   @map("sort_name") @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+
+  songs Song[]
+
+  @@index([deletedAt])
+  @@index([name], map: "artists_name_gin_idx")
+  @@map("artists")
+}
+
+model Genre {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @db.Text
+  slug      String    @unique @db.Text
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz
+
+  songGenres SongGenre[]
+
+  @@index([deletedAt])
+  @@map("genres")
+}
+
+model Song {
+  id          String    @id @default(uuid()) @db.Uuid
+  artistId    String    @map("artist_id") @db.Uuid
+  title       String    @db.Text
+  slug        String    @db.Text
+  subtitle    String?   @db.Text
+  releaseYear Int?      @map("release_year") @db.SmallInt
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  artist     Artist      @relation(fields: [artistId], references: [id], onDelete: Restrict)
+  songGenres SongGenre[]
+  tabs       Tab[]
+
+  @@unique([artistId, slug])
+  @@index([artistId])
+  @@index([deletedAt])
+  @@index([title], map: "songs_title_gin_idx")
+  @@map("songs")
+}
+
+model SongGenre {
+  songId    String   @map("song_id") @db.Uuid
+  genreId   String   @map("genre_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  song  Song  @relation(fields: [songId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([songId, genreId])
+  @@index([genreId, songId])
+  @@map("song_genres")
+}
+
+model Tab {
+  id                String     @id @default(uuid()) @db.Uuid
+  songId            String     @map("song_id") @db.Uuid
+  authorUserId      String     @map("author_user_id") @db.Uuid
+  titleOverride     String?    @map("title_override") @db.Text
+  content           String     @db.Text
+  tabType           TabType    @map("tab_type")
+  instrument        Instrument
+  difficulty        Difficulty
+  status            TabStatus  @default(DRAFT)
+  submittedAt       DateTime?  @map("submitted_at") @db.Timestamptz
+  publishedAt       DateTime?  @map("published_at") @db.Timestamptz
+  moderatedByUserId String?    @map("moderated_by_user_id") @db.Uuid
+  moderationNotes   String?    @map("moderation_notes") @db.Text
+  versionNumber     Int        @default(1) @map("version_number")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime?  @map("deleted_at") @db.Timestamptz
+
+  song        Song      @relation(fields: [songId], references: [id], onDelete: Restrict)
+  author      User      @relation("TabAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  moderatedBy User?     @relation("TabModerator", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+  tabRatings  TabRating[]
+
+  @@index([songId])
+  @@index([authorUserId])
+  @@index([tabType])
+  @@index([instrument])
+  @@index([difficulty])
+  @@index([deletedAt])
+  @@index([status, deletedAt, createdAt])
+  @@index([songId, status])
+  @@map("tabs")
+}
+
+model TabRating {
+  id        String   @id @default(uuid()) @db.Uuid
+  tabId     String   @map("tab_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  rating    Int      @db.SmallInt
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  tab  Tab  @relation(fields: [tabId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tabId, userId])
+  @@index([userId])
+  @@index([tabId])
+  @@map("tab_ratings")
+}
