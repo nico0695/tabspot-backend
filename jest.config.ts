@@ -1,6 +1,7 @@
 import type { Config } from 'jest';
 
 const config: Config = {
+  maxWorkers: 1,
   rootDir: '.',
   roots: ['<rootDir>/src', '<rootDir>/test'],
   testRegex: '(/__tests__/.*|\\.spec)\\.ts$',
