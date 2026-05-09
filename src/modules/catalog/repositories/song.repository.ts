@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
+import { encodeCursor, decodeCursor } from '@common/utils/cursor';
 import type { Song } from '@src/generated/prisma/client';
 import { TabStatus } from '@src/generated/prisma/client';
-import type { SongWhereInput } from '@src/generated/prisma/models';
+import type { SongOrderByWithRelationInput, SongWhereInput } from '@src/generated/prisma/models';
 import { PrismaService } from '@src/prisma/prisma.service';
 
 export interface SongWithArtistAndGenres extends Song {
@@ -28,6 +29,9 @@ export interface ListCursorParams {
   limit: number;
   q?: string;
   artistId?: string;
+  genreId?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
 }
 
 export interface ListCursorResult {
@@ -36,53 +40,75 @@ export interface ListCursorResult {
   hasMore: boolean;
 }
 
-function encodeCursor(id: string): string {
-  return Buffer.from(JSON.stringify({ id })).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { id: string } {
-  try {
-    const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      typeof (parsed as Record<string, unknown>)['id'] !== 'string'
-    ) {
-      throw new Error('malformed');
-    }
-    return { id: (parsed as Record<string, string>)['id'] };
-  } catch {
-    throw new BadRequestException({ code: 'INVALID_CURSOR', message: 'Invalid cursor' });
-  }
-}
-
 @Injectable()
 export class SongRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listCursor({ cursor, limit, q, artistId }: ListCursorParams): Promise<ListCursorResult> {
+  async listCursor(params: ListCursorParams): Promise<ListCursorResult> {
+    const sortBy = params.sortBy ?? 'title';
+    const order = params.order ?? 'asc';
+
     const where: SongWhereInput = {};
 
-    if (cursor !== undefined) {
-      const decoded = decodeCursor(cursor);
-      where.id = { gt: decoded.id };
+    // ── cursor (sort-aware keyset pagination) ──────────────────────────
+    if (params.cursor !== undefined) {
+      const decoded = decodeCursor(params.cursor);
+      if (decoded.sortBy && decoded.sortValue !== undefined && decoded.sortValue !== null) {
+        const comp = order === 'desc' ? 'lt' : 'gt';
+        if (decoded.sortBy === 'title') {
+          where.OR = [
+            { title: { [comp]: decoded.sortValue } },
+            { title: decoded.sortValue, id: { [comp]: decoded.id } },
+          ];
+        } else if (decoded.sortBy === 'createdAt') {
+          const sortDate = new Date(decoded.sortValue);
+          where.OR = [
+            { createdAt: { [comp]: sortDate } },
+            { createdAt: sortDate, id: { [comp]: decoded.id } },
+          ];
+        }
+      } else {
+        // Legacy id-only cursor
+        where.id = { gt: decoded.id };
+      }
     }
-    if (q !== undefined) {
-      where.title = { contains: q, mode: 'insensitive' };
+
+    // ── scalar filters ─────────────────────────────────────────────────
+    if (params.q !== undefined) {
+      where.title = { contains: params.q, mode: 'insensitive' };
     }
-    if (artistId !== undefined) {
-      where.artistId = artistId;
+    if (params.artistId !== undefined) {
+      where.artistId = params.artistId;
     }
+
+    // ── relation filter (genreId → songGenres) ─────────────────────────
+    if (params.genreId !== undefined) {
+      where.songGenres = { some: { genreId: params.genreId } };
+    }
+
+    // ── orderBy (composite for stable pagination) ──────────────────────
+    const orderBy: SongOrderByWithRelationInput[] = [{ [sortBy]: order }, { id: order }];
 
     const rows = await this.prisma.song.findMany({
       where,
-      orderBy: { id: 'asc' },
-      take: limit + 1,
+      orderBy,
+      take: params.limit + 1,
     });
 
-    const hasMore = rows.length > limit;
-    const items = hasMore ? rows.slice(0, limit) : rows;
-    const nextCursor = hasMore ? encodeCursor(items[items.length - 1].id) : null;
+    const hasMore = rows.length > params.limit;
+    const items = hasMore ? rows.slice(0, params.limit) : rows;
+
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      const lastItem = items[items.length - 1];
+      let sortValue: string | undefined;
+      if (sortBy === 'title') {
+        sortValue = lastItem.title;
+      } else if (sortBy === 'createdAt') {
+        sortValue = lastItem.createdAt.toISOString();
+      }
+      nextCursor = encodeCursor({ id: lastItem.id, sortBy, sortValue });
+    }
 
     return { items, nextCursor, hasMore };
   }

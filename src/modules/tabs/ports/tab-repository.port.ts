@@ -37,6 +37,10 @@ export interface FindPublishedFilters extends ListCursorParams {
   tabType?: string;
   instrument?: string;
   difficulty?: string;
+  genreId?: string;
+  artistId?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
 }
 
 export interface OffsetPaginationParams {

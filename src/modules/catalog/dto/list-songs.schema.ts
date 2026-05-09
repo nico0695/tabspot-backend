@@ -5,6 +5,9 @@ export const ListSongsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(100).optional(),
   artistId: z.string().uuid().optional(),
+  genreId: z.string().uuid().optional(),
+  sortBy: z.enum(['title', 'createdAt']).default('title').optional(),
+  order: z.enum(['asc', 'desc']).default('asc').optional(),
 });
 
 export type ListSongsParams = z.infer<typeof ListSongsSchema>;

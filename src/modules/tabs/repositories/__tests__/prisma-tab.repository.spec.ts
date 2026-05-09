@@ -265,6 +265,8 @@ describe('PrismaTabRepository', (): void => {
   // ── findPublished ──────────────────────────────────────────────────────
 
   describe('findPublished', (): void => {
+    const defaultOrderBy = [{ createdAt: 'desc' }, { id: 'desc' }];
+
     it('returns only PUBLISHED non-deleted tabs with author', async (): Promise<void> => {
       const tabs = [makeTabWithAuthor({ id: 'tab-1', status: TabStatus.PUBLISHED })];
       tabFindMany.mockResolvedValue(tabs);
@@ -276,7 +278,7 @@ describe('PrismaTabRepository', (): void => {
       expect(result.nextCursor).toBeNull();
       expect(tabFindMany).toHaveBeenCalledWith({
         where: { status: 'PUBLISHED', deletedAt: null },
-        orderBy: { id: 'asc' },
+        orderBy: defaultOrderBy,
         take: 11,
         include: { author: { select: { displayName: true } } },
       });
@@ -345,7 +347,7 @@ describe('PrismaTabRepository', (): void => {
       expect(result.nextCursor).not.toBeNull();
     });
 
-    it('applies cursor filter when cursor is provided', async (): Promise<void> => {
+    it('applies legacy id-only cursor filter', async (): Promise<void> => {
       const cursorPayload = Buffer.from(JSON.stringify({ id: 'cursor-id' })).toString('base64url');
       tabFindMany.mockResolvedValue([]);
 
@@ -368,6 +370,156 @@ describe('PrismaTabRepository', (): void => {
           include: { author: { select: { displayName: true } } },
         }),
       );
+    });
+
+    // ── genreId filter ─────────────────────────────────────────────────
+
+    it('applies genreId filter via where.song.songGenres.some', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, genreId: 'genre-1' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            song: { songGenres: { some: { genreId: 'genre-1' } } },
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    // ── artistId filter ────────────────────────────────────────────────
+
+    it('applies artistId filter via where.song.artistId', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, artistId: 'artist-1' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            song: { artistId: 'artist-1' },
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    // ── genreId + artistId combined ────────────────────────────────────
+
+    it('merges genreId and artistId into same where.song object', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, genreId: 'genre-1', artistId: 'artist-1' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            song: {
+              songGenres: { some: { genreId: 'genre-1' } },
+              artistId: 'artist-1',
+            },
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    // ── sortBy / order ─────────────────────────────────────────────────
+
+    it('uses sortBy=publishedAt and order=asc when specified', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, sortBy: 'publishedAt', order: 'asc' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ publishedAt: 'asc' }, { id: 'asc' }],
+        }),
+      );
+    });
+
+    it('defaults to orderBy createdAt desc when no sortBy/order provided', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10 });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: defaultOrderBy,
+        }),
+      );
+    });
+
+    // ── sort-aware cursor ──────────────────────────────────────────────
+
+    it('applies sort-aware cursor with keyset pagination for desc order', async (): Promise<void> => {
+      const sortValue = '2026-03-15T00:00:00.000Z';
+      const cursorPayload = Buffer.from(
+        JSON.stringify({ id: 'tab-5', sortBy: 'createdAt', sortValue }),
+      ).toString('base64url');
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, cursor: cursorPayload });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [
+              { createdAt: { lt: new Date(sortValue) } },
+              { createdAt: new Date(sortValue), id: { lt: 'tab-5' } },
+            ],
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('applies sort-aware cursor with keyset pagination for asc order', async (): Promise<void> => {
+      const sortValue = '2026-03-15T00:00:00.000Z';
+      const cursorPayload = Buffer.from(
+        JSON.stringify({ id: 'tab-5', sortBy: 'publishedAt', sortValue }),
+      ).toString('base64url');
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({
+        limit: 10,
+        cursor: cursorPayload,
+        sortBy: 'publishedAt',
+        order: 'asc',
+      });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [
+              { publishedAt: { gt: new Date(sortValue) } },
+              { publishedAt: new Date(sortValue), id: { gt: 'tab-5' } },
+            ],
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('encodes sort-aware cursor with sortBy and sortValue', async (): Promise<void> => {
+      const publishedDate = new Date('2026-06-01');
+      const tabs = [
+        makeTabWithAuthor({ id: 'tab-1', status: TabStatus.PUBLISHED, publishedAt: publishedDate }),
+        makeTabWithAuthor({ id: 'tab-2', status: TabStatus.PUBLISHED, publishedAt: publishedDate }),
+        makeTabWithAuthor({ id: 'tab-3', status: TabStatus.PUBLISHED, publishedAt: publishedDate }),
+      ];
+      tabFindMany.mockResolvedValue(tabs);
+
+      const result = await repo.findPublished({ limit: 2, sortBy: 'publishedAt', order: 'desc' });
+
+      expect(result.hasMore).toBe(true);
+      expect(result.nextCursor).not.toBeNull();
+
+      const decoded = JSON.parse(Buffer.from(result.nextCursor!, 'base64url').toString('utf8')) as {
+        id: string;
+        sortBy: string;
+        sortValue: string;
+      };
+      expect(decoded.id).toBe('tab-2');
+      expect(decoded.sortBy).toBe('publishedAt');
+      expect(decoded.sortValue).toBe(publishedDate.toISOString());
     });
   });
 });
