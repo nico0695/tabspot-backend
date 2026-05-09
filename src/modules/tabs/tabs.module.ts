@@ -4,7 +4,6 @@ import { AuthModule } from '@modules/auth/auth.module';
 
 import { TabsPublicController } from './controllers/tabs-public.controller';
 import { TabsUserController } from './controllers/tabs-user.controller';
-import { TabsAdminController } from './controllers/tabs-admin.controller';
 import { TAB_REPOSITORY } from './ports/tab-repository.port';
 import { PrismaTabRepository } from './repositories/prisma-tab.repository';
 import { TabsService } from './tabs.service';
@@ -15,7 +14,7 @@ import { SubmitTabUseCase } from './use-cases/submit-tab.use-case';
 
 @Module({
   imports: [AuthModule],
-  controllers: [TabsPublicController, TabsUserController, TabsAdminController],
+  controllers: [TabsPublicController, TabsUserController],
   providers: [
     { provide: TAB_REPOSITORY, useClass: PrismaTabRepository },
     CreateTabUseCase,

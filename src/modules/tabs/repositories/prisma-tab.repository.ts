@@ -7,9 +7,11 @@ import { PrismaService } from '@src/prisma/prisma.service';
 
 import type {
   CreateTabData,
+  FindAllAdminFilters,
   FindPublishedFilters,
   ITabRepository,
   ListCursorParams,
+  OffsetPaginatedResult,
   PaginatedResult,
   TabWithAuthor,
   UpdateContentData,
@@ -168,6 +170,40 @@ export class PrismaTabRepository implements ITabRepository {
     await this.prisma.tab.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+  }
+
+  async findAllAdmin(filters: FindAllAdminFilters): Promise<OffsetPaginatedResult<TabWithAuthor>> {
+    const where: TabWhereInput = {};
+
+    if (filters.status !== undefined) {
+      where.status = filters.status;
+    }
+    if (filters.includeDeleted !== true) {
+      where.deletedAt = null;
+    }
+
+    const [items, totalCount] = await Promise.all([
+      this.prisma.tab.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (filters.page - 1) * filters.pageSize,
+        take: filters.pageSize,
+        include: { author: { select: { displayName: true } } },
+      }),
+      this.prisma.tab.count({ where }),
+    ]);
+
+    return { items, totalCount };
+  }
+
+  async countByStatus(status: TabStatus): Promise<number> {
+    return this.prisma.tab.count({ where: { status, deletedAt: null } });
+  }
+
+  async countCreatedSince(since: Date): Promise<number> {
+    return this.prisma.tab.count({
+      where: { createdAt: { gte: since }, deletedAt: null },
     });
   }
 }

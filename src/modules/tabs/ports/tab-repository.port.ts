@@ -39,6 +39,21 @@ export interface FindPublishedFilters extends ListCursorParams {
   difficulty?: string;
 }
 
+export interface OffsetPaginationParams {
+  page: number;
+  pageSize: number;
+}
+
+export interface OffsetPaginatedResult<T> {
+  items: T[];
+  totalCount: number;
+}
+
+export interface FindAllAdminFilters extends OffsetPaginationParams {
+  status?: TabStatus;
+  includeDeleted?: boolean;
+}
+
 export interface UpdateContentData {
   content?: string;
   tabType?: string;
@@ -55,4 +70,7 @@ export interface ITabRepository {
   updateStatus(id: string, status: TabStatus, meta?: UpdateStatusMeta): Promise<Tab>;
   updateContent(id: string, data: UpdateContentData): Promise<Tab>;
   softDelete(id: string): Promise<void>;
+  findAllAdmin(filters: FindAllAdminFilters): Promise<OffsetPaginatedResult<TabWithAuthor>>;
+  countByStatus(status: TabStatus): Promise<number>;
+  countCreatedSince(since: Date): Promise<number>;
 }

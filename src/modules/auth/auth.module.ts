@@ -18,6 +18,13 @@ import { UserRepository } from './repositories/user.repository';
     RolesGuard,
     { provide: IDENTITY_PROVIDER, useClass: SupabaseIdentityAdapter },
   ],
-  exports: [AuthService, AuthGuard, OptionalAuthGuard, RolesGuard, IDENTITY_PROVIDER],
+  exports: [
+    AuthService,
+    AuthGuard,
+    OptionalAuthGuard,
+    RolesGuard,
+    IDENTITY_PROVIDER,
+    UserRepository,
+  ],
 })
 export class AuthModule {}
