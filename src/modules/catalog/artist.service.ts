@@ -35,20 +35,16 @@ export class ArtistService {
     }
 
     const songs = await this.songRepository.listByArtist(artist.id);
+    const tabCounts = await this.songRepository.countPublishedTabsBatch(songs.map((s) => s.id));
 
-    const songsWithTabCount = await Promise.all(
-      songs.map(async (s) => {
-        const publishedTabCount = await this.songRepository.countPublishedTabs(s.id);
-        return {
-          id: s.id,
-          title: s.title,
-          slug: s.slug,
-          subtitle: s.subtitle,
-          releaseYear: s.releaseYear,
-          publishedTabCount,
-        };
-      }),
-    );
+    const songsWithTabCount = songs.map((s) => ({
+      id: s.id,
+      title: s.title,
+      slug: s.slug,
+      subtitle: s.subtitle,
+      releaseYear: s.releaseYear,
+      publishedTabCount: tabCounts.get(s.id) ?? 0,
+    }));
 
     return {
       id: artist.id,

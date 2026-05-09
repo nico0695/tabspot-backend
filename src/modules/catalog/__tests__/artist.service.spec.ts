@@ -25,6 +25,7 @@ describe('ArtistService', () => {
     songRepo = {
       listByArtist: jest.fn(),
       countPublishedTabs: jest.fn(),
+      countPublishedTabsBatch: jest.fn(),
     } as unknown as jest.Mocked<SongRepository>;
 
     service = new ArtistService(artistRepo, songRepo);
@@ -172,7 +173,7 @@ describe('ArtistService', () => {
 
       artistRepo.findBySlug.mockResolvedValue(artist);
       songRepo.listByArtist.mockResolvedValue([songWithRelations]);
-      songRepo.countPublishedTabs.mockResolvedValue(3);
+      songRepo.countPublishedTabsBatch.mockResolvedValue(new Map([['s1', 3]]));
 
       const result = await service.getArtistBySlug('the-beatles');
 
@@ -180,6 +181,8 @@ describe('ArtistService', () => {
       expect(result.slug).toBe('the-beatles');
       expect(result.songs).toHaveLength(1);
       expect(result.songs[0].publishedTabCount).toBe(3);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(songRepo.countPublishedTabsBatch).toHaveBeenCalledWith(['s1']);
     });
 
     it('throws NotFoundException when artist does not exist', async (): Promise<void> => {
@@ -192,10 +195,31 @@ describe('ArtistService', () => {
       const artist = makeArtist({ id: 'a1', slug: 'solo-artist' });
       artistRepo.findBySlug.mockResolvedValue(artist);
       songRepo.listByArtist.mockResolvedValue([]);
+      songRepo.countPublishedTabsBatch.mockResolvedValue(new Map());
 
       const result = await service.getArtistBySlug('solo-artist');
 
       expect(result.songs).toEqual([]);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(songRepo.countPublishedTabsBatch).toHaveBeenCalledWith([]);
+    });
+
+    it('returns 0 tab count for songs with no published tabs', async (): Promise<void> => {
+      const artist = makeArtist({ id: 'a1', slug: 'new-artist' });
+      const song = makeSong({ id: 's1', artistId: 'a1' });
+      const songWithRelations = {
+        ...song,
+        artist: { id: 'a1', name: 'New Artist', slug: 'new-artist' },
+        songGenres: [],
+      };
+
+      artistRepo.findBySlug.mockResolvedValue(artist);
+      songRepo.listByArtist.mockResolvedValue([songWithRelations]);
+      songRepo.countPublishedTabsBatch.mockResolvedValue(new Map());
+
+      const result = await service.getArtistBySlug('new-artist');
+
+      expect(result.songs[0].publishedTabCount).toBe(0);
     });
   });
 });

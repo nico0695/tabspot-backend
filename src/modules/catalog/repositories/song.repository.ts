@@ -208,4 +208,20 @@ export class SongRepository {
       where: { songId, status: TabStatus.PUBLISHED, deletedAt: null },
     });
   }
+
+  async countPublishedTabsBatch(songIds: string[]): Promise<Map<string, number>> {
+    if (songIds.length === 0) return new Map();
+
+    const groups = await this.prisma.tab.groupBy({
+      by: ['songId'],
+      where: { songId: { in: songIds }, status: TabStatus.PUBLISHED, deletedAt: null },
+      _count: { id: true },
+    });
+
+    const map = new Map<string, number>();
+    for (const g of groups) {
+      map.set(g.songId, g._count.id);
+    }
+    return map;
+  }
 }
