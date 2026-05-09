@@ -1,12 +1,13 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { SignJWT } from 'jose';
 
 import type { Env } from '@config/app.config';
 
 import { SupabaseIdentityAdapter } from '../supabase-identity.adapter';
 
-type GeneratedKeyPair = Awaited<ReturnType<typeof generateKeyPair>>;
+const TEST_SECRET = 'test-jwt-secret-that-is-long-enough-for-hs256-validation';
+const SECRET_KEY = new TextEncoder().encode(TEST_SECRET);
 
 function makeConfig(value: string | undefined | null): {
   config: ConfigService<{ app: Env }>;
@@ -18,19 +19,6 @@ function makeConfig(value: string | undefined | null): {
 }
 
 describe('SupabaseIdentityAdapter', () => {
-  let publicKey: GeneratedKeyPair['publicKey'];
-  let privateKey: GeneratedKeyPair['privateKey'];
-  let jwkString: string;
-
-  beforeAll(async (): Promise<void> => {
-    const keyPair = await generateKeyPair('ES256', { extractable: true });
-    publicKey = keyPair.publicKey;
-    privateKey = keyPair.privateKey;
-    const jwk = await exportJWK(publicKey);
-    jwk.alg = 'ES256';
-    jwkString = JSON.stringify(jwk);
-  });
-
   async function signTestJwt(
     opts: {
       sub?: string;
@@ -54,79 +42,45 @@ describe('SupabaseIdentityAdapter', () => {
     } else if (opts.fullName !== undefined) {
       payload['user_metadata'] = { full_name: opts.fullName };
     }
-    let builder = new SignJWT(payload).setProtectedHeader({ alg: 'ES256' });
+    let builder = new SignJWT(payload).setProtectedHeader({ alg: 'HS256' });
     if (opts.sub !== undefined) {
       builder = builder.setSubject(opts.sub);
     }
     builder = builder.setIssuedAt(now).setExpirationTime(now + (opts.expSecondsFromNow ?? 3600));
-    return builder.sign(privateKey);
+    return builder.sign(SECRET_KEY);
   }
 
   describe('onModuleInit', () => {
-    it('loads the JWK from env successfully', async (): Promise<void> => {
-      const { config, getMock } = makeConfig(jwkString);
+    it('loads the secret from env successfully', (): void => {
+      const { config, getMock } = makeConfig(TEST_SECRET);
       const adapter = new SupabaseIdentityAdapter(config);
 
-      await expect(adapter.onModuleInit()).resolves.toBeUndefined();
+      expect(() => adapter.onModuleInit()).not.toThrow();
       expect(getMock).toHaveBeenCalledWith('app.SUPABASE_JWT_PUBLIC_KEY', { infer: true });
     });
 
-    it('throws when env var is undefined', async (): Promise<void> => {
+    it('throws when env var is undefined', (): void => {
       const adapter = new SupabaseIdentityAdapter(makeConfig(undefined).config);
-      await expect(adapter.onModuleInit()).rejects.toThrow(
-        '[auth] SUPABASE_JWT_PUBLIC_KEY is not set',
-      );
+      expect(() => adapter.onModuleInit()).toThrow('[auth] SUPABASE_JWT_PUBLIC_KEY is not set');
     });
 
-    it('throws when env var is null (non-string)', async (): Promise<void> => {
+    it('throws when env var is null (non-string)', (): void => {
       const adapter = new SupabaseIdentityAdapter(makeConfig(null).config);
-      await expect(adapter.onModuleInit()).rejects.toThrow(
-        '[auth] SUPABASE_JWT_PUBLIC_KEY is not set',
-      );
+      expect(() => adapter.onModuleInit()).toThrow('[auth] SUPABASE_JWT_PUBLIC_KEY is not set');
     });
 
-    it('throws when env var is an empty string', async (): Promise<void> => {
+    it('throws when env var is an empty string', (): void => {
       const adapter = new SupabaseIdentityAdapter(makeConfig('').config);
-      await expect(adapter.onModuleInit()).rejects.toThrow(
-        '[auth] SUPABASE_JWT_PUBLIC_KEY is not set',
-      );
-    });
-
-    it('throws with [auth] prefix when env value is not valid JSON', async (): Promise<void> => {
-      const adapter = new SupabaseIdentityAdapter(makeConfig('not-json').config);
-      await expect(adapter.onModuleInit()).rejects.toThrow(
-        /^\[auth\] SUPABASE_JWT_PUBLIC_KEY is not a valid JWK:/,
-      );
-    });
-
-    it('throws "not an object" when env value parses to a JSON string primitive', async (): Promise<void> => {
-      const adapter = new SupabaseIdentityAdapter(makeConfig('"just-a-string"').config);
-      await expect(adapter.onModuleInit()).rejects.toThrow(
-        '[auth] SUPABASE_JWT_PUBLIC_KEY is not a valid JWK: not an object',
-      );
-    });
-
-    it('throws "not an object" when env value parses to JSON null', async (): Promise<void> => {
-      const adapter = new SupabaseIdentityAdapter(makeConfig('null').config);
-      await expect(adapter.onModuleInit()).rejects.toThrow(
-        '[auth] SUPABASE_JWT_PUBLIC_KEY is not a valid JWK: not an object',
-      );
-    });
-
-    it('throws with [auth] prefix when JWK structure is invalid (importJWK fails)', async (): Promise<void> => {
-      const adapter = new SupabaseIdentityAdapter(makeConfig('{"foo":"bar"}').config);
-      await expect(adapter.onModuleInit()).rejects.toThrow(
-        /^\[auth\] SUPABASE_JWT_PUBLIC_KEY is not a valid JWK:/,
-      );
+      expect(() => adapter.onModuleInit()).toThrow('[auth] SUPABASE_JWT_PUBLIC_KEY is not set');
     });
   });
 
   describe('verifyToken', () => {
     let adapter: SupabaseIdentityAdapter;
 
-    beforeEach(async (): Promise<void> => {
-      adapter = new SupabaseIdentityAdapter(makeConfig(jwkString).config);
-      await adapter.onModuleInit();
+    beforeEach((): void => {
+      adapter = new SupabaseIdentityAdapter(makeConfig(TEST_SECRET).config);
+      adapter.onModuleInit();
     });
 
     it('returns IdentityClaims for a valid token (full_name present, email_confirmed true)', async (): Promise<void> => {
@@ -202,15 +156,15 @@ describe('SupabaseIdentityAdapter', () => {
       });
     });
 
-    it('throws INVALID_TOKEN when signature does not match the loaded JWK', async (): Promise<void> => {
-      const otherKeyPair = await generateKeyPair('ES256', { extractable: true });
+    it('throws INVALID_TOKEN when signature does not match', async (): Promise<void> => {
+      const wrongKey = new TextEncoder().encode('wrong-secret-key-that-is-long-enough');
       const now = Math.floor(Date.now() / 1000);
       const badToken = await new SignJWT({ email: 'a@b.com' })
-        .setProtectedHeader({ alg: 'ES256' })
+        .setProtectedHeader({ alg: 'HS256' })
         .setSubject('user-8')
         .setIssuedAt(now)
         .setExpirationTime(now + 3600)
-        .sign(otherKeyPair.privateKey);
+        .sign(wrongKey);
 
       await expect(adapter.verifyToken(badToken)).rejects.toMatchObject({
         response: { code: 'INVALID_TOKEN' },
@@ -238,7 +192,7 @@ describe('SupabaseIdentityAdapter', () => {
     });
 
     it('throws INVALID_TOKEN when verifyToken is called before onModuleInit', async (): Promise<void> => {
-      const uninit = new SupabaseIdentityAdapter(makeConfig(jwkString).config);
+      const uninit = new SupabaseIdentityAdapter(makeConfig(undefined).config);
       await expect(uninit.verifyToken('any.token.here')).rejects.toMatchObject({
         response: { code: 'INVALID_TOKEN', message: 'Identity provider not initialized' },
       });

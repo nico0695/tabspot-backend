@@ -28,7 +28,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Controller, Get, INestApplication, UseGuards } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { SignJWT } from 'jose';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 
@@ -66,7 +66,8 @@ if (testDatabaseUrl === undefined || testDatabaseUrl === '') {
 }
 process.env['DATABASE_URL'] = testDatabaseUrl;
 
-type GeneratedKeyPair = Awaited<ReturnType<typeof generateKeyPair>>;
+const TEST_SECRET = 'smoke-test-jwt-secret-long-enough-for-hs256';
+const SECRET_KEY = new TextEncoder().encode(TEST_SECRET);
 
 interface WhoamiResponse {
   id: string;
@@ -86,8 +87,6 @@ class SmokeWhoamiController {
 describe('Auth flow (smoke)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
-  let publicKey: GeneratedKeyPair['publicKey'];
-  let privateKey: GeneratedKeyPair['privateKey'];
 
   async function signTestJwt(opts: {
     sub: string;
@@ -105,21 +104,15 @@ describe('Auth flow (smoke)', () => {
       payload['user_metadata'] = { full_name: opts.fullName };
     }
     return new SignJWT(payload)
-      .setProtectedHeader({ alg: 'ES256' })
+      .setProtectedHeader({ alg: 'HS256' })
       .setSubject(opts.sub)
       .setIssuedAt(now)
       .setExpirationTime(now + (opts.expSecondsFromNow ?? 3600))
-      .sign(privateKey);
+      .sign(SECRET_KEY);
   }
 
   beforeAll(async (): Promise<void> => {
-    const keyPair = await generateKeyPair('ES256', { extractable: true });
-    publicKey = keyPair.publicKey;
-    privateKey = keyPair.privateKey;
-
-    const jwk = await exportJWK(publicKey);
-    jwk.alg = 'ES256';
-    process.env['SUPABASE_JWT_PUBLIC_KEY'] = JSON.stringify(jwk);
+    process.env['SUPABASE_JWT_PUBLIC_KEY'] = TEST_SECRET;
     process.env['SUPABASE_URL'] = process.env['SUPABASE_URL'] ?? 'https://test.supabase.co';
 
     const moduleRef = await Test.createTestingModule({
@@ -149,15 +142,15 @@ describe('Auth flow (smoke)', () => {
     expect(res.body).toMatchObject({ error: { code: 'INVALID_BEARER' } });
   });
 
-  it('returns 401 INVALID_TOKEN when JWT signature does not match the loaded JWK', async (): Promise<void> => {
-    const otherKeyPair = await generateKeyPair('ES256', { extractable: true });
+  it('returns 401 INVALID_TOKEN when JWT signature does not match', async (): Promise<void> => {
+    const wrongKey = new TextEncoder().encode('wrong-secret-for-mismatch-test');
     const now = Math.floor(Date.now() / 1000);
     const badToken = await new SignJWT({ email: 'mismatch@example.com' })
-      .setProtectedHeader({ alg: 'ES256' })
+      .setProtectedHeader({ alg: 'HS256' })
       .setSubject('22222222-2222-2222-2222-222222222222')
       .setIssuedAt(now)
       .setExpirationTime(now + 3600)
-      .sign(otherKeyPair.privateKey);
+      .sign(wrongKey);
 
     const res = await request(app.getHttpServer())
       .get('/smoke/whoami')

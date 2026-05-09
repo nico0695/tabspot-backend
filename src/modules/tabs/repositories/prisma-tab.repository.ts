@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 import type { Tab, TabStatus } from '@src/generated/prisma/client';
+import { TabStatus as TabStatusEnum } from '@src/generated/prisma/client';
 import type { TabWhereInput } from '@src/generated/prisma/models';
 import { PrismaService } from '@src/prisma/prisma.service';
 
@@ -10,6 +11,7 @@ import type {
   ITabRepository,
   ListCursorParams,
   PaginatedResult,
+  TabWithAuthor,
   UpdateContentData,
   UpdateStatusMeta,
 } from '../ports/tab-repository.port';
@@ -47,12 +49,48 @@ function isForeignKeyViolation(error: unknown): boolean {
 export class PrismaTabRepository implements ITabRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(id: string): Promise<Tab | null> {
-    return this.prisma.tab.findUnique({ where: { id } });
+  async findById(id: string): Promise<TabWithAuthor | null> {
+    return this.prisma.tab.findUnique({
+      where: { id },
+      include: { author: { select: { displayName: true } } },
+    });
   }
 
-  findPublished(_filters: FindPublishedFilters): Promise<PaginatedResult<Tab>> {
-    return Promise.reject(new Error('Not implemented — S5 scope'));
+  async findPublished(filters: FindPublishedFilters): Promise<PaginatedResult<TabWithAuthor>> {
+    const where: TabWhereInput = {
+      status: TabStatusEnum.PUBLISHED,
+      deletedAt: null,
+    };
+
+    if (filters.cursor !== undefined) {
+      const decoded = decodeCursor(filters.cursor);
+      where.id = { gt: decoded.id };
+    }
+    if (filters.songId !== undefined) {
+      where.songId = filters.songId;
+    }
+    if (filters.tabType !== undefined) {
+      where.tabType = filters.tabType as Tab['tabType'];
+    }
+    if (filters.instrument !== undefined) {
+      where.instrument = filters.instrument as Tab['instrument'];
+    }
+    if (filters.difficulty !== undefined) {
+      where.difficulty = filters.difficulty as Tab['difficulty'];
+    }
+
+    const rows = await this.prisma.tab.findMany({
+      where,
+      orderBy: { id: 'asc' },
+      take: filters.limit + 1,
+      include: { author: { select: { displayName: true } } },
+    });
+
+    const hasMore = rows.length > filters.limit;
+    const items = hasMore ? rows.slice(0, filters.limit) : rows;
+    const nextCursor = hasMore ? encodeCursor(items[items.length - 1].id) : null;
+
+    return { items, nextCursor, hasMore };
   }
 
   async findByUser(userId: string, params: ListCursorParams): Promise<PaginatedResult<Tab>> {

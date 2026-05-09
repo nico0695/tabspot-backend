@@ -21,17 +21,17 @@ jest.mock(
 
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 
-import type { Tab } from '@src/generated/prisma/client';
+import type { Tab, User } from '@src/generated/prisma/client';
 import { TabStatus } from '@src/generated/prisma/client';
 
 import { TabsService } from '../tabs.service';
-import type { ITabRepository, PaginatedResult } from '../ports/tab-repository.port';
+import type { ITabRepository, PaginatedResult, TabWithAuthor } from '../ports/tab-repository.port';
 import type { CreateTabUseCase } from '../use-cases/create-tab.use-case';
 import type { SubmitTabUseCase } from '../use-cases/submit-tab.use-case';
 import type { PublishTabUseCase } from '../use-cases/publish-tab.use-case';
 import type { RejectTabUseCase } from '../use-cases/reject-tab.use-case';
 
-function makeTab(overrides: Partial<Tab> = {}): Tab {
+function makeTab(overrides: Partial<Tab> = {}): TabWithAuthor {
   return {
     id: 'tab-1',
     songId: 'song-1',
@@ -50,8 +50,24 @@ function makeTab(overrides: Partial<Tab> = {}): Tab {
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     deletedAt: null,
+    author: { displayName: 'Test User' },
     ...overrides,
-  };
+  } as TabWithAuthor;
+}
+
+function makeUser(overrides: Partial<User> = {}): User {
+  return {
+    id: 'user-1',
+    supabaseAuthId: 'sup-1',
+    email: 'test@example.com',
+    displayName: 'Test User',
+    role: 'USER',
+    status: 'ACTIVE',
+    blockedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  } as User;
 }
 
 describe('TabsService', (): void => {
@@ -247,6 +263,83 @@ describe('TabsService', (): void => {
 
       expect(result).toBe(paginated);
       expect(findByUser).toHaveBeenCalledWith('user-1', params);
+    });
+  });
+
+  // ── findPublicDetail ──────────────────────────────────────────────────
+
+  describe('findPublicDetail', (): void => {
+    it('returns a PUBLISHED tab for anonymous user', async (): Promise<void> => {
+      const tab = makeTab({ status: TabStatus.PUBLISHED });
+      findById.mockResolvedValue(tab);
+
+      const result = await service.findPublicDetail('tab-1');
+
+      expect(result).toBe(tab);
+      expect(findById).toHaveBeenCalledWith('tab-1');
+    });
+
+    it('returns a PUBLISHED tab for logged-in non-owner non-admin user', async (): Promise<void> => {
+      const tab = makeTab({ status: TabStatus.PUBLISHED, authorUserId: 'other-user' });
+      findById.mockResolvedValue(tab);
+      const user = makeUser({ id: 'user-1', role: 'USER' });
+
+      const result = await service.findPublicDetail('tab-1', user);
+
+      expect(result).toBe(tab);
+    });
+
+    it('throws NotFoundException for DRAFT tab with no user (anonymous)', async (): Promise<void> => {
+      const tab = makeTab({ status: TabStatus.DRAFT });
+      findById.mockResolvedValue(tab);
+
+      await expect(service.findPublicDetail('tab-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns a DRAFT tab when user is the owner', async (): Promise<void> => {
+      const tab = makeTab({ status: TabStatus.DRAFT, authorUserId: 'user-1' });
+      findById.mockResolvedValue(tab);
+      const user = makeUser({ id: 'user-1' });
+
+      const result = await service.findPublicDetail('tab-1', user);
+
+      expect(result).toBe(tab);
+    });
+
+    it('returns a DRAFT tab when user is an admin', async (): Promise<void> => {
+      const tab = makeTab({ status: TabStatus.DRAFT, authorUserId: 'other-user' });
+      findById.mockResolvedValue(tab);
+      const user = makeUser({ id: 'admin-1', role: 'ADMIN' });
+
+      const result = await service.findPublicDetail('tab-1', user);
+
+      expect(result).toBe(tab);
+    });
+
+    it('throws NotFoundException for DRAFT tab when user is not owner and not admin', async (): Promise<void> => {
+      const tab = makeTab({ status: TabStatus.DRAFT, authorUserId: 'other-user' });
+      findById.mockResolvedValue(tab);
+      const user = makeUser({ id: 'user-1', role: 'USER' });
+
+      await expect(service.findPublicDetail('tab-1', user)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when tab does not exist', async (): Promise<void> => {
+      findById.mockResolvedValue(null);
+
+      await expect(service.findPublicDetail('missing')).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException for soft-deleted tab even when user is the owner', async (): Promise<void> => {
+      const tab = makeTab({
+        status: TabStatus.PUBLISHED,
+        authorUserId: 'user-1',
+        deletedAt: new Date('2026-03-01'),
+      });
+      findById.mockResolvedValue(tab);
+      const user = makeUser({ id: 'user-1' });
+
+      await expect(service.findPublicDetail('tab-1', user)).rejects.toThrow(NotFoundException);
     });
   });
 });

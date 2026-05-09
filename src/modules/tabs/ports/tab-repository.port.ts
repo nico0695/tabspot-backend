@@ -2,6 +2,8 @@ import type { Tab, TabStatus } from '@src/generated/prisma/client';
 
 export const TAB_REPOSITORY = Symbol('TAB_REPOSITORY');
 
+export type TabWithAuthor = Tab & { author: { displayName: string | null } };
+
 export interface CreateTabData {
   songId: string;
   authorUserId: string;
@@ -46,8 +48,8 @@ export interface UpdateContentData {
 }
 
 export interface ITabRepository {
-  findById(id: string): Promise<Tab | null>;
-  findPublished(filters: FindPublishedFilters): Promise<PaginatedResult<Tab>>;
+  findById(id: string): Promise<TabWithAuthor | null>;
+  findPublished(filters: FindPublishedFilters): Promise<PaginatedResult<TabWithAuthor>>;
   findByUser(userId: string, params: ListCursorParams): Promise<PaginatedResult<Tab>>;
   create(data: CreateTabData): Promise<Tab>;
   updateStatus(id: string, status: TabStatus, meta?: UpdateStatusMeta): Promise<Tab>;

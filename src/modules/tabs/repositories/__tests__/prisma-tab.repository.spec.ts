@@ -26,6 +26,7 @@ import { TabStatus } from '@src/generated/prisma/client';
 
 import { PrismaTabRepository } from '../prisma-tab.repository';
 import type { PrismaService } from '@src/prisma/prisma.service';
+import type { TabWithAuthor } from '../../ports/tab-repository.port';
 
 function makeTab(overrides: Partial<Tab> = {}): Tab {
   return {
@@ -47,6 +48,13 @@ function makeTab(overrides: Partial<Tab> = {}): Tab {
     updatedAt: new Date('2026-01-01'),
     deletedAt: null,
     ...overrides,
+  };
+}
+
+function makeTabWithAuthor(overrides: Partial<Tab> = {}): TabWithAuthor {
+  return {
+    ...makeTab(overrides),
+    author: { displayName: 'Test User' },
   };
 }
 
@@ -221,6 +229,145 @@ describe('PrismaTabRepository', (): void => {
           submittedAt,
         },
       });
+    });
+  });
+
+  // ── findById ───────────────────────────────────────────────────────────
+
+  describe('findById', (): void => {
+    it('returns tab with author included', async (): Promise<void> => {
+      const tabWithAuthor = makeTabWithAuthor();
+      tabFindUnique.mockResolvedValue(tabWithAuthor);
+
+      const result = await repo.findById('tab-1');
+
+      expect(result).toBe(tabWithAuthor);
+      expect(result?.author.displayName).toBe('Test User');
+      expect(tabFindUnique).toHaveBeenCalledWith({
+        where: { id: 'tab-1' },
+        include: { author: { select: { displayName: true } } },
+      });
+    });
+
+    it('returns null when tab is not found', async (): Promise<void> => {
+      tabFindUnique.mockResolvedValue(null);
+
+      const result = await repo.findById('missing');
+
+      expect(result).toBeNull();
+      expect(tabFindUnique).toHaveBeenCalledWith({
+        where: { id: 'missing' },
+        include: { author: { select: { displayName: true } } },
+      });
+    });
+  });
+
+  // ── findPublished ──────────────────────────────────────────────────────
+
+  describe('findPublished', (): void => {
+    it('returns only PUBLISHED non-deleted tabs with author', async (): Promise<void> => {
+      const tabs = [makeTabWithAuthor({ id: 'tab-1', status: TabStatus.PUBLISHED })];
+      tabFindMany.mockResolvedValue(tabs);
+
+      const result = await repo.findPublished({ limit: 10 });
+
+      expect(result.items).toEqual(tabs);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
+      expect(tabFindMany).toHaveBeenCalledWith({
+        where: { status: 'PUBLISHED', deletedAt: null },
+        orderBy: { id: 'asc' },
+        take: 11,
+        include: { author: { select: { displayName: true } } },
+      });
+    });
+
+    it('applies songId filter', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, songId: 'song-42' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ songId: 'song-42' }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('applies tabType filter', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, tabType: 'TAB' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tabType: 'TAB' }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('applies instrument filter', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, instrument: 'BASS' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ instrument: 'BASS' }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('applies difficulty filter', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, difficulty: 'ADVANCED' });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ difficulty: 'ADVANCED' }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('returns hasMore=true and nextCursor when results exceed limit', async (): Promise<void> => {
+      const tabs = [
+        makeTabWithAuthor({ id: 'tab-1', status: TabStatus.PUBLISHED }),
+        makeTabWithAuthor({ id: 'tab-2', status: TabStatus.PUBLISHED }),
+        makeTabWithAuthor({ id: 'tab-3', status: TabStatus.PUBLISHED }),
+      ];
+      tabFindMany.mockResolvedValue(tabs);
+
+      const result = await repo.findPublished({ limit: 2 });
+
+      expect(result.items).toHaveLength(2);
+      expect(result.hasMore).toBe(true);
+      expect(result.nextCursor).not.toBeNull();
+    });
+
+    it('applies cursor filter when cursor is provided', async (): Promise<void> => {
+      const cursorPayload = Buffer.from(JSON.stringify({ id: 'cursor-id' })).toString('base64url');
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10, cursor: cursorPayload });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { gt: 'cursor-id' } }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('includes author displayName in results', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+
+      await repo.findPublished({ limit: 10 });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: { author: { select: { displayName: true } } },
+        }),
+      );
     });
   });
 });

@@ -1,12 +1,10 @@
 import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { importJWK, jwtVerify } from 'jose';
+import { jwtVerify } from 'jose';
 
 import type { Env } from '@config/app.config';
 
 import type { IIdentityProvider, IdentityClaims } from '../ports/identity-provider.port';
-
-type VerificationKey = Awaited<ReturnType<typeof importJWK>>;
 
 interface SupabaseJwtPayload {
   sub?: unknown;
@@ -45,31 +43,16 @@ function normalizeVerificationError(error: unknown): UnauthorizedException {
 
 @Injectable()
 export class SupabaseIdentityAdapter implements IIdentityProvider, OnModuleInit {
-  private key?: VerificationKey;
+  private key?: Uint8Array;
 
   constructor(private readonly config: ConfigService<{ app: Env }>) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     const raw = this.config.get('app.SUPABASE_JWT_PUBLIC_KEY', { infer: true });
     if (typeof raw !== 'string' || raw.length === 0) {
       throw new Error('[auth] SUPABASE_JWT_PUBLIC_KEY is not set');
     }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      throw new Error(`[auth] SUPABASE_JWT_PUBLIC_KEY is not a valid JWK: ${reason}`);
-    }
-    if (!isObject(parsed)) {
-      throw new Error('[auth] SUPABASE_JWT_PUBLIC_KEY is not a valid JWK: not an object');
-    }
-    try {
-      this.key = await importJWK(parsed as Parameters<typeof importJWK>[0], 'ES256');
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      throw new Error(`[auth] SUPABASE_JWT_PUBLIC_KEY is not a valid JWK: ${reason}`);
-    }
+    this.key = new TextEncoder().encode(raw);
   }
 
   async verifyToken(jwt: string): Promise<IdentityClaims> {
@@ -82,7 +65,7 @@ export class SupabaseIdentityAdapter implements IIdentityProvider, OnModuleInit 
     let payload: SupabaseJwtPayload;
     try {
       const result = await jwtVerify(jwt, this.key, {
-        algorithms: ['ES256'],
+        algorithms: ['HS256'],
         clockTolerance: 5,
       });
       payload = result.payload as SupabaseJwtPayload;

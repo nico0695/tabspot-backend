@@ -6,14 +6,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import type { Tab } from '@src/generated/prisma/client';
-import { TabStatus } from '@src/generated/prisma/client';
+import type { Tab, User } from '@src/generated/prisma/client';
+import { TabStatus, UserRole } from '@src/generated/prisma/client';
 
 import type {
   ITabRepository,
   ListCursorParams,
   PaginatedResult,
   FindPublishedFilters,
+  TabWithAuthor,
   UpdateContentData,
 } from './ports/tab-repository.port';
 import { TAB_REPOSITORY } from './ports/tab-repository.port';
@@ -35,12 +36,29 @@ export class TabsService {
     private readonly rejectTabUseCase: RejectTabUseCase,
   ) {}
 
-  async listPublished(filters: FindPublishedFilters): Promise<PaginatedResult<Tab>> {
+  async listPublished(filters: FindPublishedFilters): Promise<PaginatedResult<TabWithAuthor>> {
     return this.tabRepository.findPublished(filters);
   }
 
-  async findById(id: string): Promise<Tab | null> {
+  async findById(id: string): Promise<TabWithAuthor | null> {
     return this.tabRepository.findById(id);
+  }
+
+  async findPublicDetail(id: string, user?: User): Promise<TabWithAuthor> {
+    const tab = await this.tabRepository.findById(id);
+
+    if (!tab || tab.deletedAt !== null) {
+      throw new NotFoundException({ code: 'TAB_NOT_FOUND', message: 'Tab not found' });
+    }
+
+    const isOwner = user !== undefined && tab.authorUserId === user.id;
+    const isAdmin = user !== undefined && user.role === UserRole.ADMIN;
+
+    if (tab.status === TabStatus.PUBLISHED || isOwner || isAdmin) {
+      return tab;
+    }
+
+    throw new NotFoundException({ code: 'TAB_NOT_FOUND', message: 'Tab not found' });
   }
 
   async listUserTabs(userId: string, params: ListCursorParams): Promise<PaginatedResult<Tab>> {
