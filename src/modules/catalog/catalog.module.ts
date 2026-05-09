@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { TabsModule } from '@modules/tabs/tabs.module';
+
 import { ArtistService } from './artist.service';
 import { ArtistsPublicController } from './artists-public.controller';
 import { ArtistRepository } from './repositories/artist.repository';
@@ -9,6 +11,7 @@ import { SongService } from './song.service';
 import { SongsPublicController } from './songs-public.controller';
 
 @Module({
+  imports: [TabsModule],
   controllers: [ArtistsPublicController, SongsPublicController],
   providers: [ArtistService, SongService, ArtistRepository, SongRepository, SongGenreRepository],
   exports: [ArtistService, SongService, ArtistRepository, SongRepository, SongGenreRepository],

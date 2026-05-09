@@ -6,7 +6,7 @@ import type { SongWhereInput } from '@src/generated/prisma/models';
 import { PrismaService } from '@src/prisma/prisma.service';
 
 export interface SongWithArtistAndGenres extends Song {
-  artist: { id: string; name: string };
+  artist: { id: string; name: string; slug: string };
   songGenres: { genre: { id: string; name: string; slug: string } }[];
 }
 
@@ -88,7 +88,7 @@ export class SongRepository {
   }
 
   private readonly songInclude = {
-    artist: { select: { id: true, name: true } },
+    artist: { select: { id: true, name: true, slug: true } },
     songGenres: { include: { genre: { select: { id: true, name: true, slug: true } } } },
   } as const;
 
@@ -105,6 +105,13 @@ export class SongRepository {
   async findById(id: string): Promise<SongWithArtistAndGenres | null> {
     return this.prisma.song.findUnique({
       where: { id, includeDeleted: true } as never,
+      include: this.songInclude,
+    }) as Promise<SongWithArtistAndGenres | null>;
+  }
+
+  async findBySlug(slug: string): Promise<SongWithArtistAndGenres | null> {
+    return this.prisma.song.findFirst({
+      where: { slug },
       include: this.songInclude,
     }) as Promise<SongWithArtistAndGenres | null>;
   }
@@ -160,6 +167,14 @@ export class SongRepository {
     ]);
 
     return { items, totalCount };
+  }
+
+  async listByArtist(artistId: string): Promise<SongWithArtistAndGenres[]> {
+    return this.prisma.song.findMany({
+      where: { artistId },
+      include: this.songInclude,
+      orderBy: { title: 'asc' },
+    }) as Promise<SongWithArtistAndGenres[]>;
   }
 
   async countPublishedTabs(songId: string): Promise<number> {
