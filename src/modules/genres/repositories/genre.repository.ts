@@ -4,6 +4,18 @@ import type { Genre } from '@src/generated/prisma/client';
 import type { GenreWhereInput } from '@src/generated/prisma/models';
 import { PrismaService } from '@src/prisma/prisma.service';
 
+export interface GenreListOffsetParams {
+  page: number;
+  pageSize: number;
+  q?: string;
+  includeDeleted?: boolean;
+}
+
+export interface GenreListOffsetResult {
+  items: Genre[];
+  totalCount: number;
+}
+
 export interface ListCursorParams {
   cursor?: string;
   limit: number;
@@ -58,5 +70,66 @@ export class GenreRepository {
     const nextCursor = hasMore ? encodeCursor(items[items.length - 1].id) : null;
 
     return { items, nextCursor, hasMore };
+  }
+
+  async create(data: { name: string; slug: string }): Promise<Genre> {
+    return this.prisma.genre.create({ data });
+  }
+
+  async findById(id: string): Promise<Genre | null> {
+    return this.prisma.genre.findUnique({ where: { id, includeDeleted: true } as never });
+  }
+
+  async findBySlug(slug: string): Promise<Genre | null> {
+    return this.prisma.genre.findFirst({ where: { slug, includeDeleted: true } as never });
+  }
+
+  async findByIds(ids: string[]): Promise<Genre[]> {
+    return this.prisma.genre.findMany({ where: { id: { in: ids }, deletedAt: null } });
+  }
+
+  async update(id: string, data: { name?: string; slug?: string }): Promise<Genre> {
+    return this.prisma.genre.update({ where: { id }, data });
+  }
+
+  async softDelete(id: string): Promise<Genre> {
+    return this.prisma.genre.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  async listOffset({
+    page,
+    pageSize,
+    q,
+    includeDeleted,
+  }: GenreListOffsetParams): Promise<GenreListOffsetResult> {
+    const where: GenreWhereInput & { includeDeleted?: boolean } = {};
+
+    if (includeDeleted) {
+      (where as Record<string, unknown>)['includeDeleted'] = true;
+    }
+    if (q) {
+      where.name = { contains: q, mode: 'insensitive' };
+    }
+
+    const [items, totalCount] = await Promise.all([
+      this.prisma.genre.findMany({
+        where: where as GenreWhereInput,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.genre.count({ where: where as GenreWhereInput }),
+    ]);
+
+    return { items, totalCount };
+  }
+
+  async countActiveSongAssociations(genreId: string): Promise<number> {
+    return this.prisma.songGenre.count({
+      where: { genreId, song: { deletedAt: null } },
+    });
   }
 }
