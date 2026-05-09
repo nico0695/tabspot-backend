@@ -6,10 +6,12 @@ import { RolesGuard } from '@common/guards/roles.guard';
 
 import { SupabaseIdentityAdapter } from './adapters/supabase-identity.adapter';
 import { AuthService } from './auth.service';
+import { MeController } from './controllers/me.controller';
 import { IDENTITY_PROVIDER } from './ports/identity-provider.port';
 import { UserRepository } from './repositories/user.repository';
 
 @Module({
+  controllers: [MeController],
   providers: [
     AuthService,
     UserRepository,
