@@ -8,6 +8,7 @@ import { AuthModule } from '@modules/auth/auth.module';
 import { HealthModule } from '@modules/health/health.module';
 import { GenresModule } from '@modules/genres/genres.module';
 import { CatalogModule } from '@modules/catalog/catalog.module';
+import { TabsModule } from '@modules/tabs/tabs.module';
 import { PrismaModule } from '@src/prisma/prisma.module';
 
 @Module({
@@ -48,6 +49,7 @@ import { PrismaModule } from '@src/prisma/prisma.module';
     GenresModule,
     AuthModule,
     CatalogModule,
+    TabsModule,
   ],
 })
 export class AppModule implements NestModule {
