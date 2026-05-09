@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { jwtVerify } from 'jose';
+import { createRemoteJWKSet, decodeProtectedHeader, importSPKI, jwtVerify } from 'jose';
 
 import type { Env } from '@config/app.config';
 
@@ -43,7 +43,8 @@ function normalizeVerificationError(error: unknown): UnauthorizedException {
 
 @Injectable()
 export class SupabaseIdentityAdapter implements IIdentityProvider, OnModuleInit {
-  private key?: Uint8Array;
+  private rawKey?: string;
+  private jwks?: ReturnType<typeof createRemoteJWKSet>;
 
   constructor(private readonly config: ConfigService<{ app: Env }>) {}
 
@@ -52,24 +53,75 @@ export class SupabaseIdentityAdapter implements IIdentityProvider, OnModuleInit 
     if (typeof raw !== 'string' || raw.length === 0) {
       throw new Error('[auth] SUPABASE_JWT_PUBLIC_KEY is not set');
     }
-    this.key = new TextEncoder().encode(raw);
+    this.rawKey = raw;
+
+    const supabaseUrl = this.config.get('app.SUPABASE_URL', { infer: true });
+    if (typeof supabaseUrl === 'string' && supabaseUrl.length > 0) {
+      this.jwks = createRemoteJWKSet(new URL('/auth/v1/.well-known/jwks.json', supabaseUrl));
+    }
   }
 
-  async verifyToken(jwt: string): Promise<IdentityClaims> {
-    if (this.key === undefined) {
+  private async resolveVerificationKey(
+    jwt: string,
+  ): Promise<
+    | { type: 'local'; key: CryptoKey | Uint8Array }
+    | { type: 'remote'; key: ReturnType<typeof createRemoteJWKSet> }
+  > {
+    if (this.rawKey === undefined) {
       throw new UnauthorizedException({
         code: 'INVALID_TOKEN',
         message: 'Identity provider not initialized',
       });
     }
+
+    const { alg } = decodeProtectedHeader(jwt);
+    if (alg === 'HS256') {
+      return { type: 'local', key: new TextEncoder().encode(this.rawKey) };
+    }
+
+    if (alg !== 'ES256' && alg !== 'RS256') {
+      throw new UnauthorizedException({
+        code: 'INVALID_TOKEN',
+        message: 'Invalid token',
+      });
+    }
+
+    if (this.rawKey.includes('BEGIN PUBLIC KEY')) {
+      const normalizedKey = this.rawKey.includes('\\n')
+        ? this.rawKey.replace(/\\n/g, '\n')
+        : this.rawKey;
+      return { type: 'local', key: await importSPKI(normalizedKey, alg) };
+    }
+
+    if (this.jwks !== undefined) {
+      return { type: 'remote', key: this.jwks };
+    }
+
+    const normalizedKey = this.rawKey.includes('\\n')
+      ? this.rawKey.replace(/\\n/g, '\n')
+      : this.rawKey;
+    return { type: 'local', key: await importSPKI(normalizedKey, alg) };
+  }
+
+  async verifyToken(jwt: string): Promise<IdentityClaims> {
     let payload: SupabaseJwtPayload;
     try {
-      const result = await jwtVerify(jwt, this.key, {
-        algorithms: ['HS256'],
-        clockTolerance: 5,
-      });
+      const verificationKey = await this.resolveVerificationKey(jwt);
+      const result =
+        verificationKey.type === 'remote'
+          ? await jwtVerify(jwt, verificationKey.key, {
+              algorithms: ['HS256', 'ES256', 'RS256'],
+              clockTolerance: 5,
+            })
+          : await jwtVerify(jwt, verificationKey.key, {
+              algorithms: ['HS256', 'ES256', 'RS256'],
+              clockTolerance: 5,
+            });
       payload = result.payload as SupabaseJwtPayload;
     } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
       throw normalizeVerificationError(err);
     }
 
