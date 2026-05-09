@@ -81,6 +81,10 @@ export class UserRepository {
     });
   }
 
+  async updateProfile(id: string, data: { displayName?: string | null }): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data });
+  }
+
   async countAll(): Promise<number> {
     return this.prisma.user.count();
   }

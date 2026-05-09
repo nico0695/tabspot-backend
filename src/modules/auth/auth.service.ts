@@ -64,4 +64,8 @@ export class AuthService {
 
     return this.ensureUserIsActive(user);
   }
+
+  async updateProfile(userId: string, data: { displayName?: string | null }): Promise<User> {
+    return this.users.updateProfile(userId, { displayName: data.displayName });
+  }
 }

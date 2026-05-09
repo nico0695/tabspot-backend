@@ -35,12 +35,14 @@ const blockedUser = { id: 'u3', email: 'blocked@b.com', status: UserStatus.BLOCK
 describe('AuthService', () => {
   let findBySupabaseAuthId: jest.Mock;
   let create: jest.Mock;
+  let updateProfile: jest.Mock;
   let service: AuthService;
 
   beforeEach((): void => {
     findBySupabaseAuthId = jest.fn();
     create = jest.fn();
-    const users = { findBySupabaseAuthId, create } as unknown as UserRepository;
+    updateProfile = jest.fn();
+    const users = { findBySupabaseAuthId, create, updateProfile } as unknown as UserRepository;
     service = new AuthService(users);
   });
 
@@ -117,6 +119,36 @@ describe('AuthService', () => {
 
     await expect(service.resolveActiveUser(claims)).rejects.toMatchObject({
       response: { code: 'ACCOUNT_BLOCKED' },
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('updates displayName via repository', async (): Promise<void> => {
+      const updated = { ...existingUser, displayName: 'New Name' } as User;
+      updateProfile.mockResolvedValue(updated);
+
+      const result = await service.updateProfile('u1', { displayName: 'New Name' });
+
+      expect(result).toBe(updated);
+      expect(updateProfile).toHaveBeenCalledWith('u1', { displayName: 'New Name' });
+    });
+
+    it('clears displayName when null is passed', async (): Promise<void> => {
+      const updated = { ...existingUser, displayName: null } as User;
+      updateProfile.mockResolvedValue(updated);
+
+      const result = await service.updateProfile('u1', { displayName: null });
+
+      expect(result.displayName).toBeNull();
+      expect(updateProfile).toHaveBeenCalledWith('u1', { displayName: null });
+    });
+
+    it('passes undefined displayName when not provided', async (): Promise<void> => {
+      updateProfile.mockResolvedValue(existingUser);
+
+      await service.updateProfile('u1', {});
+
+      expect(updateProfile).toHaveBeenCalledWith('u1', { displayName: undefined });
     });
   });
 });
