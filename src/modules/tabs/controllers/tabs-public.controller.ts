@@ -1,12 +1,15 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiNotFoundResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { OptionalAuthGuard } from '@common/guards/optional-auth.guard';
+import { ErrorResponseDto } from '@common/openapi/error-response.dto';
 import type { User } from '@src/generated/prisma/client';
 
+import { ListPublishedTabsResponseDto } from '../dto/public/list-published-tabs-response.dto';
 import type { ListPublishedTabsResponse } from '../dto/public/list-published-tabs-response.schema';
 import { ListPublishedTabsDto } from '../dto/public/list-published-tabs.dto';
+import { TabDetailDto } from '../dto/public/tab-detail.dto';
 import type { TabDetail } from '../dto/public/tab-detail.schema';
 import type { TabListItem } from '../dto/public/tab-list-item.schema';
 import type { TabWithAuthor } from '../ports/tab-repository.port';
@@ -22,7 +25,7 @@ function toTabListItem(tab: TabWithAuthor): TabListItem {
     difficulty: tab.difficulty,
     status: tab.status,
     authorDisplayName: tab.author.displayName,
-    createdAt: tab.createdAt,
+    createdAt: tab.createdAt.toISOString(),
   };
 }
 
@@ -39,10 +42,10 @@ function toTabDetail(tab: TabWithAuthor): TabDetail {
     status: tab.status,
     authorDisplayName: tab.author.displayName,
     versionNumber: tab.versionNumber,
-    submittedAt: tab.submittedAt,
-    publishedAt: tab.publishedAt,
-    createdAt: tab.createdAt,
-    updatedAt: tab.updatedAt,
+    submittedAt: tab.submittedAt?.toISOString() ?? null,
+    publishedAt: tab.publishedAt?.toISOString() ?? null,
+    createdAt: tab.createdAt.toISOString(),
+    updatedAt: tab.updatedAt.toISOString(),
   };
 }
 
@@ -52,7 +55,10 @@ export class TabsPublicController {
   constructor(private readonly tabsService: TabsService) {}
 
   @Get()
-  @ApiOkResponse({ description: 'Paginated list of published tabs' })
+  @ApiOkResponse({
+    description: 'Paginated list of published tabs',
+    type: ListPublishedTabsResponseDto,
+  })
   async list(@Query() query: ListPublishedTabsDto): Promise<ListPublishedTabsResponse> {
     const { items, nextCursor, hasMore } = await this.tabsService.listPublished(query);
     return {
@@ -63,7 +69,8 @@ export class TabsPublicController {
 
   @Get(':id')
   @UseGuards(OptionalAuthGuard)
-  @ApiOkResponse({ description: 'Tab detail with audience-aware visibility' })
+  @ApiOkResponse({ description: 'Tab detail with audience-aware visibility', type: TabDetailDto })
+  @ApiNotFoundResponse({ description: 'Tab not found', type: ErrorResponseDto })
   async detail(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: User | undefined,

@@ -23,7 +23,11 @@ async function bootstrap(): Promise<void> {
   const config = app.get<ConfigService<{ app: Env }>>(ConfigService);
 
   if (config.get('app.ENABLE_DOCS', { infer: true })) {
-    const docConfig = new DocumentBuilder().setTitle('TabSpot API').setVersion('1.0.0').build();
+    const docConfig = new DocumentBuilder()
+      .setTitle('TabSpot API')
+      .setVersion('1.0.0')
+      .addBearerAuth()
+      .build();
     const document = cleanupOpenApiDoc(SwaggerModule.createDocument(app, docConfig));
     SwaggerModule.setup('api/docs', app, document);
   }

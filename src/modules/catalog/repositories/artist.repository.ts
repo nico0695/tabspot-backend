@@ -4,6 +4,18 @@ import type { Artist } from '@src/generated/prisma/client';
 import type { ArtistWhereInput } from '@src/generated/prisma/models';
 import { PrismaService } from '@src/prisma/prisma.service';
 
+export interface ListOffsetParams {
+  page: number;
+  pageSize: number;
+  q?: string;
+  includeDeleted?: boolean;
+}
+
+export interface ListOffsetResult<T> {
+  items: T[];
+  totalCount: number;
+}
+
 export interface ListCursorParams {
   cursor?: string;
   limit: number;
@@ -62,5 +74,63 @@ export class ArtistRepository {
     const nextCursor = hasMore ? encodeCursor(items[items.length - 1].id) : null;
 
     return { items, nextCursor, hasMore };
+  }
+
+  async create(data: { name: string; slug: string; sortName?: string | null }): Promise<Artist> {
+    return this.prisma.artist.create({ data });
+  }
+
+  async findById(id: string): Promise<Artist | null> {
+    return this.prisma.artist.findUnique({ where: { id, includeDeleted: true } as never });
+  }
+
+  async findBySlug(slug: string): Promise<Artist | null> {
+    return this.prisma.artist.findFirst({ where: { slug, includeDeleted: true } as never });
+  }
+
+  async update(
+    id: string,
+    data: { name?: string; slug?: string; sortName?: string | null },
+  ): Promise<Artist> {
+    return this.prisma.artist.update({ where: { id }, data });
+  }
+
+  async softDelete(id: string): Promise<Artist> {
+    return this.prisma.artist.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  async listOffset({
+    page,
+    pageSize,
+    q,
+    includeDeleted,
+  }: ListOffsetParams): Promise<ListOffsetResult<Artist>> {
+    const where: ArtistWhereInput & { includeDeleted?: boolean } = {};
+
+    if (includeDeleted) {
+      (where as Record<string, unknown>)['includeDeleted'] = true;
+    }
+    if (q) {
+      where.name = { contains: q, mode: 'insensitive' };
+    }
+
+    const [items, totalCount] = await Promise.all([
+      this.prisma.artist.findMany({
+        where: where as ArtistWhereInput,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.artist.count({ where: where as ArtistWhereInput }),
+    ]);
+
+    return { items, totalCount };
+  }
+
+  async countActiveSongs(artistId: string): Promise<number> {
+    return this.prisma.song.count({ where: { artistId, deletedAt: null } });
   }
 }

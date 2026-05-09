@@ -9,7 +9,7 @@ export const TabListItemSchema = z.object({
   difficulty: z.string(),
   status: z.string(),
   authorDisplayName: z.string().nullable(),
-  createdAt: z.coerce.date(),
+  createdAt: z.string().datetime(),
 });
 
 export type TabListItem = z.infer<typeof TabListItemSchema>;

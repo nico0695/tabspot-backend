@@ -1,15 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
-interface HealthResponse {
-  status: 'ok';
-  timestamp: string;
-  uptime: number;
-}
+import { HealthResponseDto } from './dto/health-response.dto';
 
+@ApiTags('health')
 @Controller({ path: 'health', version: '1' })
 export class HealthController {
   @Get()
-  check(): HealthResponse {
+  @ApiOkResponse({ description: 'Service health status', type: HealthResponseDto })
+  check(): HealthResponseDto {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),

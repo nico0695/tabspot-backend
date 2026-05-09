@@ -119,10 +119,10 @@ describe('TabsUserController', (): void => {
         difficulty: tab.difficulty,
         status: tab.status,
         versionNumber: tab.versionNumber,
-        submittedAt: tab.submittedAt,
-        publishedAt: tab.publishedAt,
-        createdAt: tab.createdAt,
-        updatedAt: tab.updatedAt,
+        submittedAt: null,
+        publishedAt: null,
+        createdAt: tab.createdAt.toISOString(),
+        updatedAt: tab.updatedAt.toISOString(),
       });
     });
   });
