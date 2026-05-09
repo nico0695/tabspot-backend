@@ -107,7 +107,7 @@ describe('TabsPublicController', (): void => {
         difficulty: tab.difficulty,
         status: tab.status,
         authorDisplayName: 'Test Author',
-        createdAt: tab.createdAt,
+        createdAt: tab.createdAt.toISOString(),
       });
       expect(result.pageInfo).toEqual({ nextCursor: null, hasMore: false });
     });
@@ -157,10 +157,10 @@ describe('TabsPublicController', (): void => {
         status: tab.status,
         authorDisplayName: 'Test Author',
         versionNumber: tab.versionNumber,
-        submittedAt: tab.submittedAt,
-        publishedAt: tab.publishedAt,
-        createdAt: tab.createdAt,
-        updatedAt: tab.updatedAt,
+        submittedAt: null,
+        publishedAt: tab.publishedAt!.toISOString(),
+        createdAt: tab.createdAt.toISOString(),
+        updatedAt: tab.updatedAt.toISOString(),
       });
     });
 

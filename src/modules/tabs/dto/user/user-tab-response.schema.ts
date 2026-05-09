@@ -11,10 +11,10 @@ export const UserTabResponseSchema = z.object({
   difficulty: z.string(),
   status: z.string(),
   versionNumber: z.number().int(),
-  submittedAt: z.coerce.date().nullable(),
-  publishedAt: z.coerce.date().nullable(),
-  createdAt: z.coerce.date(),
-  updatedAt: z.coerce.date(),
+  submittedAt: z.string().datetime().nullable(),
+  publishedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 export type UserTabResponse = z.infer<typeof UserTabResponseSchema>;
