@@ -1,7 +1,7 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import type { Tab, User } from '@src/generated/prisma/client';
-import { TabStatus } from '@src/generated/prisma/client';
+import { TabStatus, UserStatus } from '@src/generated/prisma/client';
 
 import { UserRepository } from '@modules/auth/repositories/user.repository';
 import type { ListUsersParams } from '@modules/auth/repositories/user.repository';
@@ -63,6 +63,28 @@ export class AdminService {
     }
 
     return this.userRepository.updateRole(targetUserId, role);
+  }
+
+  async changeUserStatus(
+    targetUserId: string,
+    status: UserStatus,
+    currentUserId: string,
+  ): Promise<User> {
+    if (targetUserId === currentUserId) {
+      throw new ForbiddenException({
+        code: 'SELF_STATUS_CHANGE',
+        message: 'Cannot change your own status',
+      });
+    }
+
+    const user = await this.userRepository.findById(targetUserId);
+    if (!user) {
+      throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'User not found' });
+    }
+
+    const blockedAt = status === UserStatus.BLOCKED ? new Date() : null;
+
+    return this.userRepository.updateStatus(targetUserId, status, blockedAt);
   }
 
   async getDashboard(): Promise<DashboardData> {

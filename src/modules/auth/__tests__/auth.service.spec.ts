@@ -2,7 +2,7 @@
 // (the source uses import.meta.url which breaks under CJS).
 jest.mock('@src/generated/prisma/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client');
+  return require('../../../../dist/generated/prisma/client.js');
 });
 jest.mock(
   '@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs',
@@ -22,13 +22,15 @@ jest.mock(
 );
 
 import type { User } from '@src/generated/prisma/client';
+import { UserStatus } from '@src/generated/prisma/client';
 
 import { AuthService } from '../auth.service';
 import { UserRepository } from '../repositories/user.repository';
 
 const claims = { sub: 'sub-1', email: 'a@b.com', displayName: 'A B' };
-const existingUser = { id: 'u1', email: 'a@b.com' } as unknown as User;
-const newUser = { id: 'u2', email: 'a@b.com' } as unknown as User;
+const existingUser = { id: 'u1', email: 'a@b.com', status: UserStatus.ACTIVE } as User;
+const newUser = { id: 'u2', email: 'a@b.com', status: UserStatus.ACTIVE } as User;
+const blockedUser = { id: 'u3', email: 'blocked@b.com', status: UserStatus.BLOCKED } as User;
 
 describe('AuthService', () => {
   let findBySupabaseAuthId: jest.Mock;
@@ -100,5 +102,21 @@ describe('AuthService', () => {
 
     await expect(service.syncUser(claims)).rejects.toThrow('boom');
     expect(findBySupabaseAuthId).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolveActiveUser returns the synced user when status is ACTIVE', async (): Promise<void> => {
+    findBySupabaseAuthId.mockResolvedValue(existingUser);
+
+    const result = await service.resolveActiveUser(claims);
+
+    expect(result).toBe(existingUser);
+  });
+
+  it('resolveActiveUser throws ACCOUNT_BLOCKED when synced user is BLOCKED', async (): Promise<void> => {
+    findBySupabaseAuthId.mockResolvedValue(blockedUser);
+
+    await expect(service.resolveActiveUser(claims)).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_BLOCKED' },
+    });
   });
 });
