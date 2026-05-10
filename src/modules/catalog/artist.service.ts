@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import type { ArtistDetailResponse } from './dto/artist-detail-response.schema';
+import type { ArtistSelectResponse } from './dto/artist-select-response.schema';
 import { ListArtistsResponse } from './dto/list-artists-response.schema';
 import { ListArtistsParams } from './dto/list-artists.schema';
 import { ArtistRepository } from './repositories/artist.repository';
@@ -12,6 +13,11 @@ export class ArtistService {
     private readonly artistRepository: ArtistRepository,
     private readonly songRepository: SongRepository,
   ) {}
+
+  async getAllForSelect(): Promise<ArtistSelectResponse[]> {
+    const artists = await this.artistRepository.findAll();
+    return artists.map((a) => ({ id: a.id, name: a.name, slug: a.slug }));
+  }
 
   async listArtists(params: ListArtistsParams): Promise<ListArtistsResponse> {
     const { items, nextCursor, hasMore } = await this.artistRepository.listCursor(params);

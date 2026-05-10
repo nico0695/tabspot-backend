@@ -18,6 +18,7 @@ describe('ArtistService', () => {
 
   beforeEach((): void => {
     artistRepo = {
+      findAll: jest.fn(),
       listCursor: jest.fn(),
       findBySlug: jest.fn(),
     } as unknown as jest.Mocked<ArtistRepository>;
@@ -29,6 +30,52 @@ describe('ArtistService', () => {
     } as unknown as jest.Mocked<SongRepository>;
 
     service = new ArtistService(artistRepo, songRepo);
+  });
+
+  describe('getAllForSelect', () => {
+    it('maps artists to { id, name, slug } array without sortName', async (): Promise<void> => {
+      const artists = [
+        makeArtist({
+          id: '00000000-0000-0000-0000-000000000101',
+          name: 'Paco de Lucia',
+          slug: 'paco-de-lucia',
+          sortName: 'Lucia, Paco de',
+        }),
+        makeArtist({
+          id: '00000000-0000-0000-0000-000000000102',
+          name: 'The Beatles',
+          slug: 'the-beatles',
+          sortName: 'Beatles, The',
+        }),
+      ];
+      artistRepo.findAll.mockResolvedValue(artists);
+
+      const result = await service.getAllForSelect();
+
+      expect(result).toEqual([
+        { id: artists[0].id, name: 'Paco de Lucia', slug: 'paco-de-lucia' },
+        { id: artists[1].id, name: 'The Beatles', slug: 'the-beatles' },
+      ]);
+    });
+
+    it('returns empty array when no artists exist', async (): Promise<void> => {
+      artistRepo.findAll.mockResolvedValue([]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result).toEqual([]);
+    });
+
+    it('strips sortName and timestamp fields', async (): Promise<void> => {
+      artistRepo.findAll.mockResolvedValue([makeArtist({ sortName: 'Test, Sort' })]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result[0]).not.toHaveProperty('sortName');
+      expect(result[0]).not.toHaveProperty('createdAt');
+      expect(result[0]).not.toHaveProperty('updatedAt');
+      expect(result[0]).not.toHaveProperty('deletedAt');
+    });
   });
 
   describe('listArtists', () => {

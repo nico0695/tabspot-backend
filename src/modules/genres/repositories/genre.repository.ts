@@ -51,6 +51,10 @@ function decodeCursor(cursor: string): { id: string } {
 export class GenreRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findAll(): Promise<Genre[]> {
+    return this.prisma.genre.findMany({ orderBy: { name: 'asc' } });
+  }
+
   async listCursor({ cursor, limit }: ListCursorParams): Promise<ListCursorResult> {
     const where: GenreWhereInput = {};
 

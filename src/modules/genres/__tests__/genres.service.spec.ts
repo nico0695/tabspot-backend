@@ -13,10 +13,46 @@ describe('GenresService', () => {
 
   beforeEach((): void => {
     repository = {
+      findAll: jest.fn(),
       listCursor: jest.fn(),
     } as unknown as jest.Mocked<GenreRepository>;
 
     service = new GenresService(repository);
+  });
+
+  describe('getAllForSelect', () => {
+    it('maps genres to { id, name, slug } array', async (): Promise<void> => {
+      const genres = [
+        makeGenre({ id: '00000000-0000-0000-0000-000000000001', name: 'Jazz', slug: 'jazz' }),
+        makeGenre({ id: '00000000-0000-0000-0000-000000000002', name: 'Rock', slug: 'rock' }),
+      ];
+      repository.findAll.mockResolvedValue(genres);
+
+      const result = await service.getAllForSelect();
+
+      expect(result).toEqual([
+        { id: genres[0].id, name: 'Jazz', slug: 'jazz' },
+        { id: genres[1].id, name: 'Rock', slug: 'rock' },
+      ]);
+    });
+
+    it('returns empty array when no genres exist', async (): Promise<void> => {
+      repository.findAll.mockResolvedValue([]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result).toEqual([]);
+    });
+
+    it('strips extra fields (createdAt, updatedAt, deletedAt)', async (): Promise<void> => {
+      repository.findAll.mockResolvedValue([makeGenre()]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result[0]).not.toHaveProperty('createdAt');
+      expect(result[0]).not.toHaveProperty('updatedAt');
+      expect(result[0]).not.toHaveProperty('deletedAt');
+    });
   });
 
   describe('listGenres', () => {

@@ -6,6 +6,8 @@ import { ErrorResponseDto } from '@common/openapi/error-response.dto';
 import { ArtistService } from './artist.service';
 import { ArtistDetailResponseDto } from './dto/artist-detail-response.dto';
 import type { ArtistDetailResponse } from './dto/artist-detail-response.schema';
+import { ArtistSelectResponseDto } from './dto/artist-select-response.dto';
+import type { ArtistSelectResponse } from './dto/artist-select-response.schema';
 import { ListArtistsResponseDto } from './dto/list-artists-response.dto';
 import { ListArtistsResponse } from './dto/list-artists-response.schema';
 import { ListArtistsDto } from './dto/list-artists.dto';
@@ -14,6 +16,15 @@ import { ListArtistsDto } from './dto/list-artists.dto';
 @Controller({ path: 'artists', version: '1' })
 export class ArtistsPublicController {
   constructor(private readonly artistService: ArtistService) {}
+
+  @Get('all')
+  @ApiOkResponse({
+    description: 'All artists for select/dropdown',
+    type: [ArtistSelectResponseDto],
+  })
+  async all(): Promise<ArtistSelectResponse[]> {
+    return this.artistService.getAllForSelect();
+  }
 
   @Get()
   @ApiOkResponse({ description: 'Paginated list of artists', type: ListArtistsResponseDto })

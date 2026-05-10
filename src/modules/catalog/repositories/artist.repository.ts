@@ -38,6 +38,10 @@ export interface ListCursorResult {
 export class ArtistRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findAll(): Promise<Artist[]> {
+    return this.prisma.artist.findMany({ orderBy: { name: 'asc' } });
+  }
+
   async listCursor({
     cursor,
     limit,
