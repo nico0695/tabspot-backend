@@ -6,6 +6,7 @@ import { ErrorResponseDto } from '@common/openapi/error-response.dto';
 import { ListSongsResponseDto } from './dto/list-songs-response.dto';
 import { ListSongsResponse } from './dto/list-songs-response.schema';
 import { ListSongsDto } from './dto/list-songs.dto';
+import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { SongDetailResponseDto } from './dto/song-detail-response.dto';
 import type { SongDetailResponse } from './dto/song-detail-response.schema';
 import { SongService } from './song.service';
@@ -26,7 +27,7 @@ export class SongsPublicController {
   @ApiNotFoundResponse({ description: 'Song not found', type: ErrorResponseDto })
   async detail(
     @Param('slug') slug: string,
-    @Query() query: ListSongsDto,
+    @Query() query: PaginationQueryDto,
   ): Promise<SongDetailResponse> {
     return this.songService.getSongBySlug(slug, { cursor: query.cursor, limit: query.limit });
   }
