@@ -1,5 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { AppConfigModule } from '@config/config.module';
 import type { Env } from '@config/app.config';
@@ -17,6 +19,20 @@ import { PrismaModule } from '@src/prisma/prisma.module';
   imports: [
     AppConfigModule,
     PrismaModule,
+    ThrottlerModule.forRootAsync({
+      imports: [AppConfigModule],
+      inject: [ConfigService],
+      useFactory: (
+        config: ConfigService<{ app: Env }>,
+      ): { throttlers: { ttl: number; limit: number }[] } => ({
+        throttlers: [
+          {
+            ttl: (config.get('app.THROTTLE_TTL', { infer: true }) ?? 60) * 1000,
+            limit: config.get('app.THROTTLE_LIMIT', { infer: true }) ?? 100,
+          },
+        ],
+      }),
+    }),
     LoggerModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [ConfigService],
@@ -55,6 +71,7 @@ import { PrismaModule } from '@src/prisma/prisma.module';
     AdminModule,
     SearchModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

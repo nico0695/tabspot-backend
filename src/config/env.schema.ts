@@ -7,6 +7,8 @@ export const EnvSchema = z.object({
   DATABASE_URL_TEST: z.string().min(1),
   SUPABASE_URL: z.string().url(),
   SUPABASE_JWT_PUBLIC_KEY: z.string().min(1),
+  THROTTLE_TTL: z.coerce.number().int().positive().default(60),
+  THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
   ENABLE_DOCS: z
     .union([z.boolean(), z.enum(['true', 'false'])])
     .transform((v) => v === true || v === 'true')

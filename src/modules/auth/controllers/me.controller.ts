@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
+import { THROTTLE_WRITE } from '@common/constants/throttle';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { AuthGuard } from '@common/guards/auth.guard';
 import { ApiAuthErrors } from '@common/openapi/api-error-responses.decorator';
@@ -36,6 +38,7 @@ export class MeController {
   }
 
   @Patch()
+  @Throttle(THROTTLE_WRITE)
   @ApiOkResponse({ description: 'Profile updated', type: MeResponseDto })
   @ApiAuthErrors()
   async update(@CurrentUser() user: User, @Body() body: UpdateMeDto): Promise<MeResponse> {

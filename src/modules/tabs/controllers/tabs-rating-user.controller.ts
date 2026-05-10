@@ -10,7 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
+import { THROTTLE_WRITE } from '@common/constants/throttle';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { AuthGuard } from '@common/guards/auth.guard';
 import { ApiAuthErrors } from '@common/openapi/api-error-responses.decorator';
@@ -40,6 +42,7 @@ function toTabRatingResponse(rating: {
 
 @ApiTags('tabs')
 @ApiBearerAuth()
+@Throttle(THROTTLE_WRITE)
 @UseGuards(AuthGuard)
 @Controller({ version: '1' })
 export class TabsRatingUserController {
