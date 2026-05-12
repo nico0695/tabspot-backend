@@ -58,11 +58,28 @@ $ pnpm run start:prod
 # unit tests
 $ pnpm run test
 
-# e2e tests
-$ pnpm run test:e2e
-
 # test coverage
 $ pnpm run test:cov
+```
+
+### E2E tests
+
+E2E tests use the local `postgres-test` service only. They must never run against production.
+The E2E Jest setup maps `DATABASE_URL` from `DATABASE_URL_TEST` and fails before cleanup unless
+the target database name is `tabspot_test`.
+
+```bash
+# 1. Start local Postgres services, including postgres-test on :5433
+$ pnpm db:up
+
+# 2. Apply migrations to the test database
+$ DATABASE_URL=postgresql://tabspot:tabspot@localhost:5433/tabspot_test pnpm prisma migrate deploy
+
+# 3. Build once so Jest can load the generated Prisma CJS output used by E2E
+$ pnpm run build
+
+# 4. Run E2E
+$ pnpm run test:e2e
 ```
 
 ## Deployment

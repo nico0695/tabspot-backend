@@ -3,7 +3,18 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "setupFiles": ["<rootDir>/support/e2e-env.ts"],
+  "transformIgnorePatterns": ["node_modules/(?!.*jose)"],
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^@src/generated/prisma/client$": "<rootDir>/../dist/generated/prisma/client.js",
+    "^@prisma/client/runtime/query_compiler_fast_bg\\.postgresql\\.mjs$": "<rootDir>/../node_modules/@prisma/client/runtime/query_compiler_fast_bg.postgresql.js",
+    "^@prisma/client/runtime/query_compiler_fast_bg\\.postgresql\\.wasm-base64\\.mjs$": "<rootDir>/../node_modules/@prisma/client/runtime/query_compiler_fast_bg.postgresql.wasm-base64.js",
+    "^@src/(.*)$": "<rootDir>/../src/$1",
+    "^@modules/(.*)$": "<rootDir>/../src/modules/$1",
+    "^@common/(.*)$": "<rootDir>/../src/common/$1",
+    "^@config/(.*)$": "<rootDir>/../src/config/$1"
   }
 }
