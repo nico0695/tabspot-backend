@@ -208,24 +208,26 @@ export class PrismaTabRepository implements ITabRepository {
   }
 
   async findAllAdmin(filters: FindAllAdminFilters): Promise<OffsetPaginatedResult<TabWithAuthor>> {
-    const where: TabWhereInput = {};
+    const where: TabWhereInput & { includeDeleted?: boolean } = {};
 
     if (filters.status !== undefined) {
       where.status = filters.status;
     }
-    if (filters.includeDeleted !== true) {
+    if (filters.includeDeleted === true) {
+      (where as Record<string, unknown>)['includeDeleted'] = true;
+    } else {
       where.deletedAt = null;
     }
 
     const [items, totalCount] = await Promise.all([
       this.prisma.tab.findMany({
-        where,
+        where: where as TabWhereInput,
         orderBy: { createdAt: 'desc' },
         skip: (filters.page - 1) * filters.pageSize,
         take: filters.pageSize,
         include: { author: { select: { displayName: true } } },
       }),
-      this.prisma.tab.count({ where }),
+      this.prisma.tab.count({ where: where as TabWhereInput }),
     ]);
 
     return { items, totalCount };

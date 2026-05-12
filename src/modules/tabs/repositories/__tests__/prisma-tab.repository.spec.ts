@@ -63,6 +63,7 @@ describe('PrismaTabRepository', (): void => {
   let tabFindMany: jest.Mock;
   let tabUpdate: jest.Mock;
   let tabFindUnique: jest.Mock;
+  let tabCount: jest.Mock;
   let repo: PrismaTabRepository;
 
   beforeEach((): void => {
@@ -70,6 +71,7 @@ describe('PrismaTabRepository', (): void => {
     tabFindMany = jest.fn();
     tabUpdate = jest.fn();
     tabFindUnique = jest.fn();
+    tabCount = jest.fn();
 
     const prisma = {
       tab: {
@@ -77,6 +79,7 @@ describe('PrismaTabRepository', (): void => {
         findMany: tabFindMany,
         update: tabUpdate,
         findUnique: tabFindUnique,
+        count: tabCount,
       },
     } as unknown as PrismaService;
 
@@ -258,6 +261,66 @@ describe('PrismaTabRepository', (): void => {
       expect(tabFindUnique).toHaveBeenCalledWith({
         where: { id: 'missing' },
         include: { author: { select: { displayName: true } } },
+      });
+    });
+  });
+
+  // ── findAllAdmin ───────────────────────────────────────────────────────
+
+  describe('findAllAdmin', (): void => {
+    it('filters out soft-deleted tabs by default', async (): Promise<void> => {
+      const tabs = [makeTabWithAuthor()];
+      tabFindMany.mockResolvedValue(tabs);
+      tabCount.mockResolvedValue(1);
+
+      const result = await repo.findAllAdmin({ page: 1, pageSize: 20 });
+
+      expect(result).toEqual({ items: tabs, totalCount: 1 });
+      expect(tabFindMany).toHaveBeenCalledWith({
+        where: { deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 20,
+        include: { author: { select: { displayName: true } } },
+      });
+      expect(tabCount).toHaveBeenCalledWith({ where: { deletedAt: null } });
+    });
+
+    it('passes includeDeleted sentinel when admin requests deleted tabs', async (): Promise<void> => {
+      const tabs = [makeTabWithAuthor({ deletedAt: new Date('2026-03-01') })];
+      tabFindMany.mockResolvedValue(tabs);
+      tabCount.mockResolvedValue(1);
+
+      await repo.findAllAdmin({ page: 2, pageSize: 10, includeDeleted: true });
+
+      expect(tabFindMany).toHaveBeenCalledWith({
+        where: { includeDeleted: true },
+        orderBy: { createdAt: 'desc' },
+        skip: 10,
+        take: 10,
+        include: { author: { select: { displayName: true } } },
+      });
+      expect(tabCount).toHaveBeenCalledWith({ where: { includeDeleted: true } });
+    });
+
+    it('preserves status filter while including deleted tabs', async (): Promise<void> => {
+      tabFindMany.mockResolvedValue([]);
+      tabCount.mockResolvedValue(0);
+
+      await repo.findAllAdmin({
+        page: 1,
+        pageSize: 20,
+        status: TabStatus.PENDING,
+        includeDeleted: true,
+      });
+
+      expect(tabFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: TabStatus.PENDING, includeDeleted: true },
+        }),
+      );
+      expect(tabCount).toHaveBeenCalledWith({
+        where: { status: TabStatus.PENDING, includeDeleted: true },
       });
     });
   });
