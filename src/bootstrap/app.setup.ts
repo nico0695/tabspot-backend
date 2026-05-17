@@ -20,7 +20,7 @@ export function setupApp(app: NestExpressApplication): Env {
   app.useBodyParser('urlencoded', { limit: appConfig.REQUEST_BODY_LIMIT, extended: true });
   app.enableCors(buildCorsOptions(appConfig));
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', { exclude: ['metrics'] });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   app.useGlobalPipes(new ZodValidationPipe());
