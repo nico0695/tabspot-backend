@@ -1,123 +1,94 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# TabSpot Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for a tablature and chord platform. Stores musical tabs as raw ChordPro strings; the frontend (Next.js) parses them at render time.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
 
-## Description
+| Area            | Technology                    |
+|-----------------|-------------------------------|
+| Framework       | NestJS 11 (Express)           |
+| Language        | TypeScript 5.7 (strict mode)  |
+| Database        | PostgreSQL 16                 |
+| ORM             | Prisma 7                      |
+| Auth            | Supabase Auth (JWT)           |
+| Validation      | Zod + nestjs-zod              |
+| Logging         | Pino (nestjs-pino)            |
+| Build           | SWC                           |
+| Testing         | Jest 30                       |
+| Docs            | OpenAPI 3.0 / Swagger         |
+| Package Manager | pnpm                          |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project documentation
-
-Authoritative project docs live under `docs/`:
-
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — backend architecture, layer rules, API conventions, validation/auth/logging policies.
-- [`docs/CONTRIBUTING.md`](./docs/CONTRIBUTING.md) — local setup, GitFlow branching, Conventional Commits, PR workflow, testing rules.
-- [`CLAUDE.md`](./CLAUDE.md) — guidance for working with Claude Code on this repo.
-
-## Project setup
+## Quick Start
 
 ```bash
-$ pnpm install
+git clone <repo>
+cd tabspot-backend
+pnpm install
+cp .env.example .env          # edit with your values
+pnpm run db:up                # start PostgreSQL (Docker)
+npx prisma migrate dev        # run migrations
+npx prisma db seed            # seed initial data
+pnpm run start:dev            # http://localhost:4000/api/v1/health
 ```
 
-## Compile and run the project
+## Project Structure
 
-```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+```
+src/
+├── bootstrap/     # App setup (CORS, body parser, Swagger, global pipes/filters)
+├── common/        # Guards, decorators, filters, middlewares, utils
+├── config/        # Environment validation (Zod schema)
+├── prisma/        # PrismaService with soft-delete extension
+├── modules/
+│   ├── auth/      # Supabase JWT verification, user sync, profile
+│   ├── catalog/   # Artists and Songs (public read)
+│   ├── genres/    # Genre listing
+│   ├── tabs/      # Tab CRUD, submission workflow, ratings
+│   ├── admin/     # Moderation, user/catalog management
+│   ├── search/    # Full-text search
+│   └── health/    # Health check
+└── generated/     # Prisma client (auto-generated, gitignored)
 ```
 
-## Run tests
+## API Overview
 
-```bash
-# unit tests
-$ pnpm run test
+- **12** public endpoints -- catalog browsing, search, tab reading
+- **9** authenticated endpoints -- profile, tab creation/submission, ratings
+- **13** admin endpoints -- moderation, user management, catalog CRUD
+- Full reference: [API-REFERENCE.md](API-REFERENCE.md)
+- Swagger UI: `GET /api/docs` (available when `ENABLE_DOCS=true`)
 
-# test coverage
-$ pnpm run test:cov
-```
+## Scripts
 
-### E2E tests
+| Command                | Description                    |
+|------------------------|--------------------------------|
+| `pnpm run start:dev`   | Dev server with watch mode     |
+| `pnpm run build`       | Compile to `dist/`             |
+| `pnpm run start:prod`  | Run compiled build             |
+| `pnpm run test`        | Unit tests                     |
+| `pnpm run test:e2e`    | E2E tests                      |
+| `pnpm run test:cov`    | Coverage report (80% threshold)|
+| `pnpm run lint`        | ESLint with auto-fix           |
+| `pnpm run format`      | Prettier                       |
+| `pnpm run typecheck`   | TypeScript strict check        |
+| `pnpm run db:up`       | Start PostgreSQL containers    |
+| `pnpm run db:down`     | Stop containers                |
 
-E2E tests use the local `postgres-test` service only. They must never run against production.
-The E2E Jest setup maps `DATABASE_URL` from `DATABASE_URL_TEST` and fails before cleanup unless
-the target database name is `tabspot_test`.
+## Documentation
 
-```bash
-# 1. Start local Postgres services, including postgres-test on :5433
-$ pnpm db:up
-
-# 2. Apply migrations to the test database
-$ DATABASE_URL=postgresql://tabspot:tabspot@localhost:5433/tabspot_test pnpm prisma migrate deploy
-
-# 3. Build once so Jest can load the generated Prisma CJS output used by E2E
-$ pnpm run build
-
-# 4. Run E2E
-$ pnpm run test:e2e
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+| Topic          | File                                            |
+|----------------|-------------------------------------------------|
+| Architecture   | [ARCHITECTURE.md](ARCHITECTURE.md)               |
+| API Reference  | [API-REFERENCE.md](API-REFERENCE.md)             |
+| Database       | [DATABASE.md](DATABASE.md)                       |
+| Getting Started| [GETTING-STARTED.md](GETTING-STARTED.md)         |
+| Authentication | [AUTHENTICATION.md](AUTHENTICATION.md)           |
+| Modules        | [MODULES.md](MODULES.md)                         |
+| Testing        | [TESTING.md](TESTING.md)                         |
+| Configuration  | [CONFIGURATION.md](CONFIGURATION.md)             |
+| Deployment     | [DEPLOYMENT.md](DEPLOYMENT.md)                   |
+| Contributing   | [CONTRIBUTING.md](CONTRIBUTING.md)               |
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED -- private project.

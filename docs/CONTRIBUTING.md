@@ -1,517 +1,175 @@
-# TabSpot Backend — Contributing Guide
+# Contributing Guide
 
-## About this document
+This document covers the conventions, tooling, and workflow expected from every contributor to TabSpot backend.
 
-This file is the **authoritative** reference for how to work on this codebase: how to set up
-your environment, branch, commit, open pull requests, and run the test suites.
+## Branching Model (GitFlow)
 
-Its companion is [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md), which is authoritative for **what
-to build** and how the codebase is organized. When this guide cites a rule that comes from
-architecture, the architecture document is the source of truth.
+| Branch | Purpose | Branches from |
+|--------|---------|---------------|
+| `main` | Production-ready code | -- |
+| `develop` | Integration branch | -- |
+| `feature/*` | New features | `develop` |
+| `release/*` | Release preparation | `develop` |
+| `hotfix/*` | Production fixes | `main` |
 
-Background docs (read for context, not authority):
+- All day-to-day work happens in `feature/*` branches.
+- `release/*` branches are created when `develop` is ready for a release; final fixes go here before merging to `main` and back to `develop`.
+- `hotfix/*` branches are merged to both `main` and `develop`.
 
-- [`docs/tab-spot.prd.md`](./tab-spot.prd.md) — product definition.
-- [`docs/backend-mvp.md`](./backend-mvp.md) — Sprint 1 technical breakdown.
-- [`docs/initial-idea.md`](./initial-idea.md) — stack and roadmap.
+## Commit Messages
 
-For working with Claude Code on this repo, see [`CLAUDE.md`](../CLAUDE.md).
+Conventional Commits enforced by **commitlint + Husky** hook.
 
----
+**Format:** `type(scope): description`
 
-## Prerequisites
+**Allowed types:** `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `ci`, `perf`, `style`
 
-| Tool | Version | Notes |
-|---|---|---|
-| Node.js | 20+ LTS | Match `package.json` `engines` if present; otherwise current LTS. |
-| pnpm | latest stable | The **only** supported package manager. `pnpm-lock.yaml` is the source of truth. Do not use npm or yarn. |
-| Docker | recent | For Postgres (dev + test) via Docker Compose. |
-| Docker Compose v2 | recent | Invoked as `docker compose` (no hyphen). |
-| Git | recent | GitFlow workflow; see §Branching. |
+**Examples:**
 
----
-
-## Local setup
-
-```bash
-# 1. Clone
-git clone <repo-url> tabspot-backend
-cd tabspot-backend
-
-# 2. Install dependencies
-pnpm install
-
-# 3. Bootstrap your env file (Sprint 1 follow-up: .env.example will be committed)
-cp .env.example .env
-
-# 4. Bring up Postgres (dev + test) — Sprint 1 follow-up: docker-compose.yml
-pnpm db:up
-
-# 5. Apply migrations — Sprint 1 follow-up: Prisma wiring
-pnpm prisma migrate dev
-
-# 6. Run the dev server (watch mode, port from PORT env, defaults to 3000)
-pnpm run start:dev
+```
+feat(tabs): add rating aggregation endpoint
+fix(auth): handle expired token edge case
+chore(deps): upgrade prisma to 7.8
+test(catalog): add artist slug uniqueness tests
 ```
 
-> **Important.** `.env` is gitignored and **must never be committed**. The same applies to
-> `.env.local` and any file containing real secrets.
+**Rules:**
 
-> **Sprint 1 follow-ups.** Some of the commands above (`pnpm db:up`, `pnpm prisma migrate dev`,
-> the existence of `.env.example`) depend on files being added in Sprint 1 work that has not
-> yet landed. When a command is missing, that work is the blocker — do not improvise around it.
+- Type is required.
+- Scope is optional but recommended.
+- Description in lowercase, no period at end.
+- Body and footer are optional.
 
----
+## Pull Request Process
 
-## Environment variables
+1. Create a feature branch from `develop`.
+2. Make changes, commit with conventional messages.
+3. Push and open a PR against `develop`.
+4. Ensure CI passes (lint, typecheck, tests, build).
+5. Request review.
+6. Squash-merge or rebase-merge.
 
-- The **source of truth** for environment variables is `src/config/env.schema.ts` (a single
-  Zod schema). At bootstrap, the schema runs `safeParse(process.env)` and the process exits
-  with a clear error if anything is missing or malformed.
-- `.env.example` is committed and **must stay in lockstep with `env.schema.ts`**. When you
-  add or rename a variable in one, update the other in the **same PR**.
-- Never commit `.env`, `.env.local`, or any file containing real secrets.
+**PR description should include:**
 
----
+- Summary of changes (what and why).
+- Testing performed.
+- Breaking changes (if any).
 
-## Branching model — GitFlow
+## Code Standards
 
-We use **GitFlow** with two long-lived branches and three short-lived branch types.
+### TypeScript Strict Mode
 
-### Long-lived branches
+All strict checks are enabled. No `any` types allowed anywhere in the codebase.
 
-- **`main`** — production. Tagged on every release. **No direct commits.** Merges arrive only
-  from `release/*` and `hotfix/*`.
-- **`develop`** — integration. Feature PRs target this branch by default.
+### Explicit Return Types
 
-### Short-lived branches
+Every function must have an explicit return type annotation. This is enforced by ESLint (`@typescript-eslint/explicit-function-return-type` and `explicit-module-boundary-types`).
 
-| Branch pattern | Branched from | Merged to | Purpose |
-|---|---|---|---|
-| `feature/<kebab-description>` | `develop` | `develop` (squash) | New work toward the next release. |
-| `release/<x.y.z>` | `develop` | `main` (tag), then back-merge to `develop` | Stabilize a release. Only fixes against the release. |
-| `hotfix/<kebab-description>` | `main` | `main` (tag), then back-merge to `develop` | Urgent production fix. |
+### Unused Variables
 
-### Diagram
+Prefix intentionally unused parameters with `_` (e.g., `_req`). Enforced by both ESLint and TypeScript compiler options.
 
-```text
-  main      ───●─────────────●─────────────●──────────●──   (tags: v0.1, v0.2, v0.2.1, v0.3)
-                \           / \           / \         /
-                 \         /   \         /   \       /
-  release/0.2.0   \       ●───●          \   ●──────/
-                   \     /                \         /
-                    \   /                  \       /
-  hotfix/fix-x       \ /                    ●─────/
-                      \                      \
-  develop  ─●─●─●─●────●─●─●─●─●─●─●─●─●─●─●─●─●─●─●─●─●─
-              \   \                       \      \
-               \   \                       \      \
-  feature/foo   ●───●                       \      \
-  feature/bar                                ●──────●
-```
+### Promises
 
-### Naming examples
-
-- `feature/add-tabs-module`
-- `feature/auth-roles-guard`
-- `release/0.2.0`
-- `hotfix/fix-rating-overflow`
-
-> **PR direction reminder.** Never PR `develop → main` directly. The only paths from `develop`
-> to `main` are `release/*` and (for emergencies) `hotfix/*`.
+Always `await` or explicitly `void` a promise. No floating promises allowed. Enforced by `@typescript-eslint/no-floating-promises` and `no-misused-promises`.
 
 ---
 
-## Commits — Conventional Commits
+## Naming Conventions
 
-We use [**Conventional Commits**](https://www.conventionalcommits.org), strictly enforced by
-**`husky`** + **`commitlint`** on the `commit-msg` hook. **Invalid commits are blocked.**
+### Files
 
-### Allowed types
+Use kebab-case for all files:
 
-`feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `ci`, `perf`, `style`.
-
-### Format
-
-```text
-<type>(<scope>?): <subject>
-
-<body — optional, wrap at ~100 cols>
-
-<footer — optional, BREAKING CHANGE / Closes #...>
+```
+auth.guard.ts
+tab-rating.service.ts
+create-tab.use-case.ts
 ```
 
-- **Scope** is optional but **recommended** when scoping a module: `feat(tabs): ...`,
-  `fix(auth): ...`.
-- **Subject**: imperative, lowercase, no trailing period, ≤72 chars.
-- **Body**: explain **WHY**, not WHAT. The diff already shows what changed.
-- **Footer**: `BREAKING CHANGE: <description>` for breaking changes; `Closes #123` for issues.
+**Standard suffixes:**
 
-### Examples
-
-```text
-feat(tabs): add publish use-case with status workflow
-
-Introduces PublishTabUseCase to centralize the draft → pending → published transition.
-The previous direct service mutation made it impossible to enforce the
-"only owner can publish" rule consistently from admin endpoints.
-```
-
-```text
-fix(auth): reject expired Supabase JWTs at the guard
-```
-
-```text
-chore(deps): bump nestjs-zod to 3.0.4
-```
-
-> **Do not bypass the hook with `--no-verify`.** If commitlint blocks you, the message is
-> wrong — fix the message.
-
----
-
-## Pull requests
-
-### Targets
-
-- `feature/*` → **`develop`**.
-- `release/*` and `hotfix/*` → **`main`** (and back-merge to `develop` after).
-
-### Title and merge style
-
-- The PR title follows the same Conventional Commits format as the squash commit it will
-  produce.
-- **Always squash-merge** `feature/*` into `develop`.
-- Use a **regular merge** for `release/*` and `hotfix/*` into `main` so the merge commit
-  anchors the version tag.
-
-### PR description template
-
-Copy this into every new PR:
-
-```markdown
-## What
-<1–2 sentences describing the change>
-
-## Why
-<motivation; link issues if any>
-
-## How to test
-1. <step>
-2. <step>
-3. <expected result>
-
-## Checklist
-- [ ] Conventional Commits subject and body
-- [ ] Branch name follows `feature/`, `release/`, or `hotfix/`
-- [ ] Path aliases used (no deep relative imports)
-- [ ] Repository pattern respected (no `PrismaService` injected into services)
-- [ ] DTOs use Zod schemas (no `class-validator`); types via `z.infer`
-- [ ] DTOs split per audience when shapes diverge
-- [ ] Routes follow `/api/v1/...`, `/api/v1/me/...`, or `/api/v1/admin/...`
-- [ ] Soft delete respected (no manual `deletedAt` filter; relies on the extension)
-- [ ] Logging follows redaction rules (no tokens, passwords, full Authorization headers, full emails, ChordPro content, Supabase service keys)
-- [ ] Tests live under `__tests__/` folders per layer
-- [ ] Coverage gate (80%) still passes
-- [ ] No `any`, no floating promises, no `class-validator` imports
-```
-
-### Required CI checks
-
-CI must pass before merge (Sprint 4 follow-up to wire the pipeline; the expectation is set now):
-
-- `pnpm run lint`
-- `pnpm exec tsc --noEmit -p tsconfig.json`
-- `pnpm run test` (unit + integration)
-- `pnpm run test:e2e`
-- `pnpm run build`
-- Coverage gate: 80% global
-
-### Approvals
-
-- 1 approval required.
-- **Solo self-merge** is acceptable as a **temporary exception** while there is only one
-  developer on the project. **Remove this exception** the moment a second contributor joins.
-
----
-
-## Code review checklist
-
-Reviewers run through this list before approving. It is the same list copied into the PR
-description above so authors self-review first.
-
-- Conventional Commits subject and body.
-- Branch naming follows `feature/`, `release/`, or `hotfix/`.
-- Path aliases used (no deep relative imports).
-- Repository pattern respected (no `PrismaService` in services).
-- Zod schemas used for DTOs (no `class-validator`); types via `z.infer`.
-- DTOs split per audience when shapes diverge.
-- Routes follow `/api/v1/...`, `/api/v1/me/...`, `/api/v1/admin/...`.
-- Soft delete respected (no manual `deletedAt` filter; uses the extension).
-- Logging follows the redaction list (no tokens, passwords, full `Authorization` headers, full
-  emails, ChordPro content, Supabase service keys).
-- Tests added under `__tests__/` folders per layer.
-- Coverage gate (80%) still passes; new branches and functions are covered.
-- No `any`, no floating promises, no `class-validator` imports.
-
----
-
-## Naming conventions
-
-### Files (kebab-case with role suffix)
-
-| Pattern | Example |
-|---|---|
-| `*.controller.ts` | `tabs-public.controller.ts` |
-| `*.service.ts` | `tabs.service.ts` |
-| `*.repository.ts` | `tab.repository.ts` |
-| `*.use-case.ts` | `publish-tab.use-case.ts` |
-| `*.module.ts` | `tabs.module.ts` |
-| `*.guard.ts` | `auth.guard.ts` |
-| `*.filter.ts` | `http-exception.filter.ts` |
-| `*.interceptor.ts` | `logger.interceptor.ts` |
-| `*.pipe.ts` | `parse-tab-id.pipe.ts` |
-| `*.decorator.ts` | `current-user.decorator.ts` |
-| `*.adapter.ts` | `supabase-identity.adapter.ts` |
-| `*.port.ts` | `tab-repository.port.ts` |
-| `*.schema.ts` | `create-tab.schema.ts` (raw Zod schema) |
-| `*.dto.ts` | `create-tab.dto.ts` (`createZodDto` class) |
-| `*.spec.ts` | `tab.repository.spec.ts` (unit / integration) |
-| `*.e2e-spec.ts` | `tabs.e2e-spec.ts` (under `test/`) |
+`.module.ts`, `.controller.ts`, `.service.ts`, `.repository.ts`, `.guard.ts`, `.decorator.ts`, `.filter.ts`, `.dto.ts`, `.schema.ts`, `.spec.ts`, `.e2e-spec.ts`, `.use-case.ts`
 
 ### Symbols
 
-- **Classes**: PascalCase — `TabsController`, `CreateTabDto`, `PublishTabUseCase`.
-- **Variables / functions**: camelCase.
-- **Enums**: PascalCase for the enum, `UPPER_SNAKE_CASE` for members:
-  `enum UserRole { USER, ADMIN }`.
-- **Branded ID types**: PascalCase brand applied to a Zod string:
-  `z.string().uuid().brand<'TabId'>()` → `TabId`, `ArtistId`, `UserId`.
+| Convention | Usage |
+|------------|-------|
+| PascalCase | Classes, interfaces, types, enums, decorators |
+| camelCase | Functions, methods, variables, properties |
+| UPPER_SNAKE_CASE | Constants, injection tokens |
+
+Prefix interfaces with `I` only for ports (e.g., `ITabRepository`).
 
 ---
 
-## Imports order
+## Import Order
 
-Three groups, separated by **one blank line**, in this order:
+Organize imports in the following groups, separated by a blank line between each:
 
-1. **External packages** — `@nestjs/common`, `zod`, `nestjs-zod`, …
-2. **Aliased imports** — `@modules/...`, `@common/...`, `@config/...`, `@src/...`.
-3. **Relative imports** — `./create-tab.schema`, …
-
-Alphabetize within each group when the editor cannot do it automatically.
-
-```ts
-import { Injectable } from '@nestjs/common';
-import { z } from 'zod';
-
-import { PrismaService } from '@src/prisma/prisma.service';
-import { CurrentUser } from '@common/decorators/current-user.decorator';
-
-import { CreateTabSchema } from './create-tab.schema';
-```
-
-> **Deep relative imports (`../../...`) are forbidden.** Use the aliases.
+1. Node built-ins (`node:*`)
+2. External packages (`@nestjs/*`, `zod`, etc.)
+3. Path aliases (`@common/*`, `@modules/*`, `@config/*`, `@src/*`)
+4. Relative imports (`./`, `../`)
 
 ---
 
-## Comments policy
+## Code Quality Tooling
 
-- **Default to writing no comments.** Well-named identifiers do the work.
-- Add a comment **only** when the WHY is non-obvious: a hidden constraint, a subtle
-  invariant, a workaround for a specific bug.
-- **Do not** explain WHAT the code does — the names already do.
-- **Do not** reference current tasks, fix numbers, or callers (`used by X`, `added for Y`).
-  That belongs in the PR description and rots as the codebase evolves.
-- **JSDoc** only on public exports of `common/` utilities or on shared schemas where API
-  documentation has real value for consumers.
+| Tool | Config File | Command |
+|------|-------------|---------|
+| ESLint | `eslint.config.mjs` | `pnpm run lint` |
+| Prettier | `.prettierrc` | `pnpm run format` |
+| TypeScript | `tsconfig.json` | `pnpm run typecheck` |
+| commitlint | `commitlint.config.js` | Auto (Husky hook) |
 
----
-
-## Tests — running the suites
-
-| Command | Purpose |
-|---|---|
-| `pnpm test` | Full unit + integration suite (Jest). |
-| `pnpm test:watch` | Watch mode while developing. |
-| `pnpm test:cov` | Runs the suite with coverage; CI uses this for the 80% gate. |
-| `pnpm test:e2e` | End-to-end suite under `test/` (`*.e2e-spec.ts`). |
-| `pnpm jest path/to/file.spec.ts` | Run a single test file. |
-
-> **Layout migration note.** The test layout was intentionally changed from colocated
-> `*.spec.ts` to `__tests__/` folders per layer (see next section). The Jest config update is
-> a **Sprint 1 follow-up**; until that lands, the existing `src/app.controller.spec.ts`
-> continues to work in place. Do not move it ahead of the config change.
+**Prettier settings:** single quotes, trailing commas, 100-char width, semicolons.
 
 ---
 
-## Tests — `__tests__/` layout
+## Pre-Commit Hooks
 
-Tests live in `__tests__/` folders **inside each layer** of each module.
+Husky runs on every commit:
 
-```text
-src/modules/tabs/
-├── repositories/
-│   ├── prisma-tab.repository.ts
-│   └── __tests__/
-│       └── prisma-tab.repository.spec.ts
-├── use-cases/
-│   ├── publish-tab.use-case.ts
-│   └── __tests__/
-│       └── publish-tab.use-case.spec.ts
-└── __tests__/
-    └── tabs.service.spec.ts
-```
+1. `pnpm run lint` -- ESLint with auto-fix.
+2. `tsc --noEmit` -- Full type check.
+3. `pnpm run test` -- Unit test suite.
+4. commitlint -- Validates commit message format.
 
-End-to-end specs (`*.e2e-spec.ts`) live under the top-level `test/` directory.
-
-**Reasoning.** Keeps tests near their subject (high cohesion) without polluting the production
-source listing.
+All must pass for the commit to succeed.
 
 ---
 
-## Tests — types and what to mock
+## Testing Requirements
 
-Three test types:
-
-| Type | IO | DB | External adapters | Lives in |
-|---|---|---|---|---|
-| **Unit** | none | none | mocked | `__tests__/` per layer |
-| **Integration** | local | real Postgres test DB | mocked | `__tests__/` per layer |
-| **E2E** | full | real Postgres test DB | mocked | `test/*.e2e-spec.ts` |
-
-Mocks policy:
-
-- **Mock external adapters**: Supabase, future notifications, future email.
-- **Do NOT mock Prisma** at the integration or e2e level — the whole point is to exercise the
-  real query path against the test DB.
-- **Do NOT mock first-party services** across modules. If you find yourself wanting to,
-  refactor toward a port — that is the signal that the dependency is genuinely swappable.
+- **Coverage gate:** 80% (lines, branches, functions, statements).
+- Write tests for: business logic, guards, utils, use-cases, services.
+- E2E tests for: critical API flows.
+- See `docs-v2/TESTING.md` for the full testing guide.
 
 ---
 
-## Tests — coverage gate
+## Code Review Checklist
 
-- CI enforces **80% global coverage** on lines, branches, functions, and statements
-  (configured in `jest.config`).
-- Local `pnpm test:cov` runs the same gate so failures surface **before** PR.
-- Sensible exclude patterns (Sprint 1 follow-up to add to `jest.config`):
-
-```text
-src/main.ts                  # bootstrap glue
-src/**/*.module.ts           # DI wiring
-src/**/dto/*.dto.ts          # createZodDto shells (the schema underneath is what matters)
-```
-
-> When you write new code, you write its tests in the **same PR**. New uncovered code that
-> drops coverage below 80% blocks the merge.
+- [ ] Changes match the PR description
+- [ ] No `any` types introduced
+- [ ] All functions have explicit return types
+- [ ] No floating promises
+- [ ] New endpoints have OpenAPI decorators
+- [ ] DTOs use Zod schemas (not class-validator)
+- [ ] Soft-delete respected where applicable
+- [ ] No secrets or credentials in code
+- [ ] Tests added for new/changed behavior
+- [ ] No unnecessary comments (code should be self-documenting)
 
 ---
 
-## Tests — fixtures and factories
+## What NOT to Do
 
-- **Factory-per-entity** files live under `test/factories/` (e.g., `test/factories/make-tab.ts`).
-- Each factory is a single function: `makeTab(overrides?: Partial<Tab>): Tab` — return a valid
-  in-memory entity with sensible defaults; `overrides` lets tests tweak the fields they care
-  about.
-- Factories generate **plausible but deterministic** data. Use a seeded faker, or fixed UUIDs
-  in tests that compare exact values.
-- **Fixtures** (large blobs, sample ChordPro files) live under `test/fixtures/` and are loaded
-  with `fs.readFileSync` in the test setup.
-
-```ts
-// test/factories/make-tab.ts
-import type { Tab } from '@prisma/client';
-
-export const makeTab = (overrides: Partial<Tab> = {}): Tab => ({
-  id: '00000000-0000-0000-0000-000000000001',
-  title: 'Wonderwall',
-  artistId: '00000000-0000-0000-0000-000000000010',
-  content: '[C]Today is gonna be the day...',
-  difficulty: 'MEDIUM',
-  status: 'DRAFT',
-  ownerId: '00000000-0000-0000-0000-000000000020',
-  createdAt: new Date('2026-01-01T00:00:00Z'),
-  updatedAt: new Date('2026-01-01T00:00:00Z'),
-  deletedAt: null,
-  ...overrides,
-});
-```
-
----
-
-## Quality tooling — local and CI
-
-| Command | Purpose |
-|---|---|
-| `pnpm run lint` | `eslint --fix` over `{src,apps,libs,test}/**/*.ts`. |
-| `pnpm run format` | `prettier --write` on `src/` and `test/`. |
-| `pnpm exec tsc --noEmit -p tsconfig.json` | Strict typecheck without emit. |
-| `pnpm run build` | `nest build` into `dist/`. |
-| `pnpm test:cov` | Tests + 80% coverage gate. |
-| `pnpm test:e2e` | End-to-end suite. |
-
-**All of the above must pass before opening a PR.** CI runs them; local pre-push hooks
-(Sprint 4 follow-up) will mirror this.
-
-**Editor configuration:** enable "Format on save" with Prettier and "ESLint: Auto Fix on
-Save" so the rules apply continuously.
-
----
-
-## Code quality rules (full list)
-
-The load-bearing rules duplicated here so contributors do not have to chase across files:
-
-### ESLint errors that must stay green
-
-- `@typescript-eslint/explicit-function-return-type`
-- `@typescript-eslint/explicit-module-boundary-types`
-- `@typescript-eslint/no-explicit-any`
-- `@typescript-eslint/no-floating-promises` and `@typescript-eslint/no-misused-promises` —
-  always `await` or `void` a promise.
-- `@typescript-eslint/no-unused-vars` with `argsIgnorePattern: '^_'` — prefix intentionally
-  unused params with `_` (e.g., `_req` in guards).
-
-### TypeScript strict flags (`tsconfig.json`)
-
-- `strictNullChecks`
-- `noImplicitAny`
-- `noUnusedLocals`
-- `noUnusedParameters`
-- `noImplicitReturns`
-
-### Prettier
-
-- Single quotes
-- Trailing commas
-- 100-column width
-- Semicolons
-
----
-
-## What NOT to do (drift prevention)
-
-- Do **not** introduce `class-validator` or `class-transformer`. We use Zod end-to-end via
-  `nestjs-zod`.
-- Do **not** inject `PrismaService` directly into a service. Go through a repository.
-- Do **not** use Prisma legacy middleware (`prisma.$use(...)`). Use `$extends`.
-- Do **not** define schemas inside request handlers. Schemas live at module scope.
-- Do **not** use `z.any()` or `z.unknown()` outside an explicitly documented boundary.
-- Do **not** deep-relative-import (`../../...`). Use `@modules/`, `@common/`, `@config/`,
-  `@src/`.
-- Do **not** skip Conventional Commits with `--no-verify`. Fix the message instead.
-- Do **not** commit `.env` files or any real secret.
-- Do **not** auto-mock Prisma in integration tests.
-- Do **not** add custom `DomainError` classes. Throw native Nest `HttpException` subclasses
-  (`NotFoundException`, `ForbiddenException`, `ConflictException`, `BadRequestException`, …).
-
----
-
-## Authority and maintenance
-
-This document is authoritative for the developer workflow. When a rule here changes, update
-the corresponding bullets in `sdd-lite/skill-catalog.md` under
-`## Project Standards (auto-resolved)` so downstream tooling stays aligned.
-
-Architecture rules belong in [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md). Keep the two docs
-in sync: when one references a rule, the other should not contradict it.
+- Don't use `class-validator` or `class-transformer` -- use Zod.
+- Don't use `any` -- find the proper type.
+- Don't skip pre-commit hooks with `--no-verify`.
+- Don't commit `.env` files.
+- Don't add comments explaining what the code does -- only why.
+- Don't introduce abstractions for single-use patterns.
+- Don't use relative imports when a path alias exists.
