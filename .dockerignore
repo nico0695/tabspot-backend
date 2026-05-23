@@ -1,0 +1,17 @@
+.git
+.github
+.claude
+.agents
+node_modules
+dist
+coverage
+data-for-seeder
+docs-old
+sdd-lite
+.env
+.env.*
+!.env.production.example
+src/generated/prisma
+openapi.json
+DEPLOY_IDEA.md
+

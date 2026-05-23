@@ -1,0 +1,142 @@
+name: CI and Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: tabspot-backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tabspot
+          POSTGRES_PASSWORD: tabspot
+          POSTGRES_DB: tabspot_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U tabspot -d tabspot_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://tabspot:tabspot@127.0.0.1:5433/tabspot_test
+      DATABASE_URL_TEST: postgresql://tabspot:tabspot@127.0.0.1:5433/tabspot_test
+      SUPABASE_URL: https://test.supabase.co
+      SUPABASE_JWT_PUBLIC_KEY: smoke-test-jwt-secret-long-enough-for-hs256
+      CORS_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      CORS_CREDENTIALS: "false"
+      REQUEST_BODY_LIMIT: 256kb
+      THROTTLE_TTL: "60"
+      THROTTLE_LIMIT: "100"
+      ENABLE_DOCS: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm run prisma:generate
+
+      - name: Apply test migrations
+        run: pnpm run db:migrate:deploy
+
+      - name: Lint
+        run: pnpm run lint:check
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Format check
+        run: pnpm run format:check
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Unit and integration tests
+        run: pnpm run test
+
+      - name: E2E tests
+        run: pnpm run test:e2e
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync repository on VPS
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd '${{ secrets.VPS_APP_PATH }}' && git fetch --all --prune && git checkout main && git pull --ff-only origin main"
+
+      - name: Write production env file on VPS
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cat > '${{ secrets.VPS_APP_PATH }}/.env.production' <<'EOF'
+          NODE_ENV=production
+          PORT=3000
+          DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
+          POSTGRES_USER=${{ secrets.PROD_POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.PROD_POSTGRES_DB }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_JWT_PUBLIC_KEY=${{ secrets.SUPABASE_JWT_PUBLIC_KEY }}
+          CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
+          CORS_CREDENTIALS=false
+          REQUEST_BODY_LIMIT=256kb
+          THROTTLE_TTL=60
+          THROTTLE_LIMIT=100
+          ENABLE_DOCS=false
+          EOF"
+
+      - name: Deploy on VPS
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd '${{ secrets.VPS_APP_PATH }}' && \
+            docker compose -f docker-compose.prod.yml build && \
+            docker compose -f docker-compose.prod.yml run --rm migrator && \
+            docker compose -f docker-compose.prod.yml up -d api && \
+            docker compose -f docker-compose.prod.yml ps"
+
+      - name: Health check
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "curl -fsS http://127.0.0.1:4004/api/v1/health >/dev/null"

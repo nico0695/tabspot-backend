@@ -65,14 +65,30 @@ src/
 | `pnpm run start:dev`   | Dev server with watch mode     |
 | `pnpm run build`       | Compile to `dist/`             |
 | `pnpm run start:prod`  | Run compiled build             |
+| `pnpm run prisma:generate` | Generate Prisma client      |
+| `pnpm run db:migrate:deploy` | Apply pending Prisma migrations |
 | `pnpm run test`        | Unit tests                     |
 | `pnpm run test:e2e`    | E2E tests                      |
 | `pnpm run test:cov`    | Coverage report (80% threshold)|
 | `pnpm run lint`        | ESLint with auto-fix           |
+| `pnpm run lint:check`  | ESLint without file mutation   |
 | `pnpm run format`      | Prettier                       |
+| `pnpm run format:check`| Prettier check only            |
 | `pnpm run typecheck`   | TypeScript strict check        |
 | `pnpm run db:up`       | Start PostgreSQL containers    |
 | `pnpm run db:down`     | Stop containers                |
+
+## Deployment
+
+Production deploy is now repository-backed:
+
+- `Dockerfile` builds the NestJS runtime image.
+- `docker-compose.prod.yml` defines `postgres`, `migrator`, and `api`.
+- `.github/workflows/main.yml` runs DB-backed CI on `develop`/`main` activity and deploys to the VPS on `push` to `main`.
+- The VPS path is expected to be `/app/tabspot-backend`.
+- The API is published on the VPS as `127.0.0.1:4004:3000` for Nginx upstreaming.
+
+See [docs/deployment.md](docs/deployment.md) for the production env contract, GitHub secrets, VPS expectations, backup notes, and the manual first-admin bootstrap step.
 
 ## Documentation
 
