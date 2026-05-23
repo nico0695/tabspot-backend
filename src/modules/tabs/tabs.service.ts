@@ -14,6 +14,7 @@ import type {
   ListCursorParams,
   PaginatedResult,
   FindPublishedFilters,
+  TabDetailRow,
   TabWithAuthor,
   UpdateContentData,
 } from './ports/tab-repository.port';
@@ -40,11 +41,11 @@ export class TabsService {
     return this.tabRepository.findPublished(filters);
   }
 
-  async findById(id: string): Promise<TabWithAuthor | null> {
+  async findById(id: string): Promise<TabDetailRow | null> {
     return this.tabRepository.findById(id);
   }
 
-  async findPublicDetail(id: string, user?: User): Promise<TabWithAuthor> {
+  async findPublicDetail(id: string, user?: User): Promise<TabDetailRow> {
     const tab = await this.tabRepository.findById(id);
 
     if (!tab || tab.deletedAt !== null) {

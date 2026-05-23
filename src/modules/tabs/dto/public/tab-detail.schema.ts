@@ -1,8 +1,29 @@
 import { z } from 'zod';
 
+const TabSongArtistSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  slug: z.string(),
+});
+
+const TabSongGenreSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  slug: z.string(),
+});
+
+const TabSongSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  slug: z.string(),
+  subtitle: z.string().nullable(),
+  releaseYear: z.number().int().nullable(),
+  artist: TabSongArtistSchema,
+  genres: z.array(TabSongGenreSchema),
+});
+
 export const TabDetailSchema = z.object({
   id: z.string().uuid(),
-  songId: z.string().uuid(),
   authorUserId: z.string().uuid(),
   titleOverride: z.string().nullable(),
   content: z.string(),
@@ -16,6 +37,7 @@ export const TabDetailSchema = z.object({
   publishedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  song: TabSongSchema,
 });
 
 export type TabDetail = z.infer<typeof TabDetailSchema>;
