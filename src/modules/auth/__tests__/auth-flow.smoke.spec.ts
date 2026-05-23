@@ -2,7 +2,7 @@
 // with ts-jest CJS mode) to the pre-compiled CJS dist output for all modules in this test.
 jest.mock('@src/generated/prisma/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client');
+  return require('../../../../dist/generated/prisma/client.js');
 });
 
 // Prisma v7's compiled client uses ESM-only .mjs WASM modules at runtime.
@@ -26,18 +26,18 @@ jest.mock(
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Controller, Get, INestApplication, UseGuards } from '@nestjs/common';
+import { Controller, Get, INestApplication, UseGuards, VersioningType } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { SignJWT } from 'jose';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 
-import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { HttpExceptionFilter } from '@common/filters/http-exception.filter';
-import { AuthGuard } from '@common/guards/auth.guard';
+import { CurrentUser } from '@common/decorators/current-user.decorator';
+import { OptionalAuthGuard } from '@common/guards/optional-auth.guard';
 import { AppConfigModule } from '@config/config.module';
 import { AuthModule } from '@modules/auth/auth.module';
-import type { User, UserRole } from '@src/generated/prisma/client';
+import type { User, UserRole, UserStatus } from '@src/generated/prisma/client';
 import { PrismaModule } from '@src/prisma/prisma.module';
 import { PrismaService } from '@src/prisma/prisma.service';
 
@@ -72,15 +72,17 @@ const SECRET_KEY = new TextEncoder().encode(TEST_SECRET);
 interface WhoamiResponse {
   id: string;
   email: string;
+  displayName: string | null;
   role: UserRole;
+  status: UserStatus;
 }
 
-@Controller('smoke')
-class SmokeWhoamiController {
-  @Get('whoami')
-  @UseGuards(AuthGuard)
-  whoami(@CurrentUser() user: User): WhoamiResponse {
-    return { id: user.id, email: user.email, role: user.role };
+@Controller({ path: 'auth-smoke-optional', version: '1' })
+class OptionalAuthSmokeController {
+  @Get()
+  @UseGuards(OptionalAuthGuard)
+  optional(@CurrentUser() user: User | undefined): { userId: string | null } {
+    return { userId: user?.id ?? null };
   }
 }
 
@@ -117,11 +119,13 @@ describe('Auth flow (smoke)', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppConfigModule, PrismaModule, AuthModule],
-      controllers: [SmokeWhoamiController],
+      controllers: [OptionalAuthSmokeController],
     }).compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalFilters(new HttpExceptionFilter());
+    app.setGlobalPrefix('api');
+    app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     await app.init();
 
     prisma = moduleRef.get(PrismaService);
@@ -137,7 +141,7 @@ describe('Auth flow (smoke)', () => {
   });
 
   it('returns 401 INVALID_BEARER when Authorization header is missing', async (): Promise<void> => {
-    const res = await request(app.getHttpServer()).get('/smoke/whoami');
+    const res = await request(app.getHttpServer()).get('/api/v1/me');
     expect(res.status).toBe(401);
     expect(res.body).toMatchObject({ error: { code: 'INVALID_BEARER' } });
   });
@@ -153,7 +157,7 @@ describe('Auth flow (smoke)', () => {
       .sign(wrongKey);
 
     const res = await request(app.getHttpServer())
-      .get('/smoke/whoami')
+      .get('/api/v1/me')
       .set('Authorization', `Bearer ${badToken}`);
 
     expect(res.status).toBe(401);
@@ -168,7 +172,7 @@ describe('Auth flow (smoke)', () => {
     });
 
     const res = await request(app.getHttpServer())
-      .get('/smoke/whoami')
+      .get('/api/v1/me')
       .set('Authorization', `Bearer ${expiredToken}`);
 
     expect(res.status).toBe(401);
@@ -181,11 +185,16 @@ describe('Auth flow (smoke)', () => {
     const token = await signTestJwt({ sub, email, fullName: 'First User' });
 
     const res = await request(app.getHttpServer())
-      .get('/smoke/whoami')
+      .get('/api/v1/me')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ email, role: 'USER' });
+    expect(res.body).toMatchObject({
+      email,
+      displayName: 'First User',
+      role: 'USER',
+      status: 'ACTIVE',
+    });
     const body = res.body as WhoamiResponse;
     expect(typeof body.id).toBe('string');
 
@@ -202,14 +211,14 @@ describe('Auth flow (smoke)', () => {
     const token = await signTestJwt({ sub, email });
 
     const firstRes = await request(app.getHttpServer())
-      .get('/smoke/whoami')
+      .get('/api/v1/me')
       .set('Authorization', `Bearer ${token}`);
     expect(firstRes.status).toBe(200);
     const firstBody = firstRes.body as WhoamiResponse;
     const firstId = firstBody.id;
 
     const secondRes = await request(app.getHttpServer())
-      .get('/smoke/whoami')
+      .get('/api/v1/me')
       .set('Authorization', `Bearer ${token}`);
     expect(secondRes.status).toBe(200);
     const secondBody = secondRes.body as WhoamiResponse;
@@ -217,5 +226,51 @@ describe('Auth flow (smoke)', () => {
 
     const count = await prisma.user.count({ where: { supabaseAuthId: sub } });
     expect(count).toBe(1);
+  });
+
+  it('returns 403 ACCOUNT_BLOCKED when a blocked user hits a required-auth route with a valid JWT', async (): Promise<void> => {
+    const sub = '44444444-4444-4444-4444-444444444444';
+    const email = 'blocked-required@example.com';
+    const token = await signTestJwt({ sub, email, fullName: 'Blocked User' });
+
+    await prisma.user.create({
+      data: {
+        supabaseAuthId: sub,
+        email,
+        displayName: 'Blocked User',
+        status: 'BLOCKED',
+        blockedAt: new Date('2026-05-09T00:00:00Z'),
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: { code: 'ACCOUNT_BLOCKED' } });
+  });
+
+  it('returns 403 ACCOUNT_BLOCKED when a blocked user hits an optional-auth route with a valid JWT', async (): Promise<void> => {
+    const sub = '55555555-5555-5555-5555-555555555555';
+    const email = 'blocked-optional@example.com';
+    const token = await signTestJwt({ sub, email });
+
+    await prisma.user.create({
+      data: {
+        supabaseAuthId: sub,
+        email,
+        displayName: null,
+        status: 'BLOCKED',
+        blockedAt: new Date('2026-05-09T00:00:00Z'),
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/auth-smoke-optional')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: { code: 'ACCOUNT_BLOCKED' } });
   });
 });

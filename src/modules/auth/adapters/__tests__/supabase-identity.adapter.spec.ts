@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SignJWT } from 'jose';
+import { exportJWK, exportSPKI, generateKeyPair, SignJWT } from 'jose';
 
 import type { Env } from '@config/app.config';
 
@@ -9,11 +9,22 @@ import { SupabaseIdentityAdapter } from '../supabase-identity.adapter';
 const TEST_SECRET = 'test-jwt-secret-that-is-long-enough-for-hs256-validation';
 const SECRET_KEY = new TextEncoder().encode(TEST_SECRET);
 
-function makeConfig(value: string | undefined | null): {
+function makeConfig(
+  value: string | undefined | null,
+  overrides: Partial<Env> = {},
+): {
   config: ConfigService<{ app: Env }>;
   getMock: jest.Mock;
 } {
-  const getMock = jest.fn().mockReturnValue(value);
+  const getMock = jest.fn((key: string) => {
+    if (key === 'app.SUPABASE_JWT_PUBLIC_KEY') {
+      return value;
+    }
+    if (key === 'app.SUPABASE_URL') {
+      return overrides.SUPABASE_URL ?? 'https://test.supabase.co';
+    }
+    return undefined;
+  });
   const config = { get: getMock } as unknown as ConfigService<{ app: Env }>;
   return { config, getMock };
 }
@@ -169,6 +180,70 @@ describe('SupabaseIdentityAdapter', () => {
       await expect(adapter.verifyToken(badToken)).rejects.toMatchObject({
         response: { code: 'INVALID_TOKEN' },
       });
+    });
+
+    it('verifies an ES256 token signed with a Supabase-style public key PEM', async (): Promise<void> => {
+      const { publicKey, privateKey } = await generateKeyPair('ES256');
+      const publicKeyPem = await exportSPKI(publicKey);
+      const es256Adapter = new SupabaseIdentityAdapter(makeConfig(publicKeyPem).config);
+      es256Adapter.onModuleInit();
+
+      const now = Math.floor(Date.now() / 1000);
+      const token = await new SignJWT({
+        email: 'es256@example.com',
+        email_confirmed: true,
+        user_metadata: { full_name: 'ES User' },
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setSubject('user-es256')
+        .setIssuedAt(now)
+        .setExpirationTime(now + 3600)
+        .sign(privateKey);
+
+      await expect(es256Adapter.verifyToken(token)).resolves.toMatchObject({
+        sub: 'user-es256',
+        email: 'es256@example.com',
+        displayName: 'ES User',
+        emailConfirmed: true,
+      });
+    });
+
+    it('falls back to Supabase JWKS for ES256 when env key is not a PEM', async (): Promise<void> => {
+      const { publicKey, privateKey } = await generateKeyPair('ES256');
+      const jwk = await exportJWK(publicKey);
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            keys: [{ ...jwk, use: 'sig', alg: 'ES256', kid: 'test-kid' }],
+          }),
+      }) as typeof fetch;
+
+      try {
+        const jwksAdapter = new SupabaseIdentityAdapter(makeConfig('not-a-pem-key').config);
+        jwksAdapter.onModuleInit();
+
+        const now = Math.floor(Date.now() / 1000);
+        const token = await new SignJWT({
+          email: 'jwks@example.com',
+          email_confirmed: true,
+        })
+          .setProtectedHeader({ alg: 'ES256', kid: 'test-kid' })
+          .setSubject('user-jwks')
+          .setIssuedAt(now)
+          .setExpirationTime(now + 3600)
+          .sign(privateKey);
+
+        await expect(jwksAdapter.verifyToken(token)).resolves.toMatchObject({
+          sub: 'user-jwks',
+          email: 'jwks@example.com',
+          emailConfirmed: true,
+        });
+      } finally {
+        global.fetch = originalFetch;
+      }
     });
 
     it('throws INVALID_TOKEN when token is structurally invalid (not a JWT)', async (): Promise<void> => {

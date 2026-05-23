@@ -3,20 +3,79 @@ jest.mock('@src/generated/prisma/client', () => {
   return require('../../../../dist/generated/prisma/client');
 });
 
+import { NotFoundException } from '@nestjs/common';
+
 import { ArtistService } from '../artist.service';
 import { ArtistRepository } from '../repositories/artist.repository';
+import { SongRepository } from '../repositories/song.repository';
 import { makeArtist } from '../../../../test/factories/make-artist';
+import { makeSong } from '../../../../test/factories/make-song';
 
 describe('ArtistService', () => {
   let service: ArtistService;
-  let repository: jest.Mocked<ArtistRepository>;
+  let artistRepo: jest.Mocked<ArtistRepository>;
+  let songRepo: jest.Mocked<SongRepository>;
 
   beforeEach((): void => {
-    repository = {
+    artistRepo = {
+      findAll: jest.fn(),
       listCursor: jest.fn(),
+      findBySlug: jest.fn(),
     } as unknown as jest.Mocked<ArtistRepository>;
 
-    service = new ArtistService(repository);
+    songRepo = {
+      listByArtist: jest.fn(),
+      countPublishedTabs: jest.fn(),
+      countPublishedTabsBatch: jest.fn(),
+    } as unknown as jest.Mocked<SongRepository>;
+
+    service = new ArtistService(artistRepo, songRepo);
+  });
+
+  describe('getAllForSelect', () => {
+    it('maps artists to { id, name, slug } array without sortName', async (): Promise<void> => {
+      const artists = [
+        makeArtist({
+          id: '00000000-0000-0000-0000-000000000101',
+          name: 'Paco de Lucia',
+          slug: 'paco-de-lucia',
+          sortName: 'Lucia, Paco de',
+        }),
+        makeArtist({
+          id: '00000000-0000-0000-0000-000000000102',
+          name: 'The Beatles',
+          slug: 'the-beatles',
+          sortName: 'Beatles, The',
+        }),
+      ];
+      artistRepo.findAll.mockResolvedValue(artists);
+
+      const result = await service.getAllForSelect();
+
+      expect(result).toEqual([
+        { id: artists[0].id, name: 'Paco de Lucia', slug: 'paco-de-lucia' },
+        { id: artists[1].id, name: 'The Beatles', slug: 'the-beatles' },
+      ]);
+    });
+
+    it('returns empty array when no artists exist', async (): Promise<void> => {
+      artistRepo.findAll.mockResolvedValue([]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result).toEqual([]);
+    });
+
+    it('strips sortName and timestamp fields', async (): Promise<void> => {
+      artistRepo.findAll.mockResolvedValue([makeArtist({ sortName: 'Test, Sort' })]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result[0]).not.toHaveProperty('sortName');
+      expect(result[0]).not.toHaveProperty('createdAt');
+      expect(result[0]).not.toHaveProperty('updatedAt');
+      expect(result[0]).not.toHaveProperty('deletedAt');
+    });
   });
 
   describe('listArtists', () => {
@@ -27,7 +86,7 @@ describe('ArtistService', () => {
         slug: 'the-beatles',
         sortName: 'Beatles, The',
       });
-      repository.listCursor.mockResolvedValue({
+      artistRepo.listCursor.mockResolvedValue({
         items: [artist],
         nextCursor: null,
         hasMore: false,
@@ -50,7 +109,7 @@ describe('ArtistService', () => {
 
     it('strips extra Artist fields (createdAt, updatedAt, deletedAt) from response data', async (): Promise<void> => {
       const artist = makeArtist();
-      repository.listCursor.mockResolvedValue({
+      artistRepo.listCursor.mockResolvedValue({
         items: [artist],
         nextCursor: null,
         hasMore: false,
@@ -65,7 +124,7 @@ describe('ArtistService', () => {
 
     it('preserves nullable sortName when the artist has no sortName', async (): Promise<void> => {
       const artist = makeArtist({ sortName: null });
-      repository.listCursor.mockResolvedValue({
+      artistRepo.listCursor.mockResolvedValue({
         items: [artist],
         nextCursor: null,
         hasMore: false,
@@ -77,7 +136,7 @@ describe('ArtistService', () => {
     });
 
     it('forwards cursor, limit, and q params to the repository unchanged', async (): Promise<void> => {
-      repository.listCursor.mockResolvedValue({
+      artistRepo.listCursor.mockResolvedValue({
         items: [],
         nextCursor: null,
         hasMore: false,
@@ -87,13 +146,13 @@ describe('ArtistService', () => {
       await service.listArtists(params);
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(repository.listCursor).toHaveBeenCalledWith(params);
+      expect(artistRepo.listCursor).toHaveBeenCalledWith(params);
     });
 
     it('returns hasMore: true and nextCursor when repository signals more pages', async (): Promise<void> => {
       const artist = makeArtist();
       const nextCursor = 'next-page-cursor';
-      repository.listCursor.mockResolvedValue({
+      artistRepo.listCursor.mockResolvedValue({
         items: [artist],
         nextCursor,
         hasMore: true,
@@ -120,7 +179,7 @@ describe('ArtistService', () => {
           sortName: null,
         }),
       ];
-      repository.listCursor.mockResolvedValue({
+      artistRepo.listCursor.mockResolvedValue({
         items: artists,
         nextCursor: null,
         hasMore: false,
@@ -141,6 +200,73 @@ describe('ArtistService', () => {
         slug: 'radiohead',
         sortName: null,
       });
+    });
+  });
+
+  describe('getArtistBySlug', () => {
+    it('returns artist with songs and published tab counts', async (): Promise<void> => {
+      const artist = makeArtist({ id: 'a1', slug: 'the-beatles' });
+      const song = makeSong({
+        id: 's1',
+        artistId: 'a1',
+        title: 'Hey Jude',
+        slug: 'hey-jude',
+      });
+      const songWithRelations = {
+        ...song,
+        artist: { id: 'a1', name: 'The Beatles', slug: 'the-beatles' },
+        songGenres: [],
+      };
+
+      artistRepo.findBySlug.mockResolvedValue(artist);
+      songRepo.listByArtist.mockResolvedValue([songWithRelations]);
+      songRepo.countPublishedTabsBatch.mockResolvedValue(new Map([['s1', 3]]));
+
+      const result = await service.getArtistBySlug('the-beatles');
+
+      expect(result.id).toBe('a1');
+      expect(result.slug).toBe('the-beatles');
+      expect(result.songs).toHaveLength(1);
+      expect(result.songs[0].publishedTabCount).toBe(3);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(songRepo.countPublishedTabsBatch).toHaveBeenCalledWith(['s1']);
+    });
+
+    it('throws NotFoundException when artist does not exist', async (): Promise<void> => {
+      artistRepo.findBySlug.mockResolvedValue(null);
+
+      await expect(service.getArtistBySlug('nonexistent')).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns empty songs array when artist has no songs', async (): Promise<void> => {
+      const artist = makeArtist({ id: 'a1', slug: 'solo-artist' });
+      artistRepo.findBySlug.mockResolvedValue(artist);
+      songRepo.listByArtist.mockResolvedValue([]);
+      songRepo.countPublishedTabsBatch.mockResolvedValue(new Map());
+
+      const result = await service.getArtistBySlug('solo-artist');
+
+      expect(result.songs).toEqual([]);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(songRepo.countPublishedTabsBatch).toHaveBeenCalledWith([]);
+    });
+
+    it('returns 0 tab count for songs with no published tabs', async (): Promise<void> => {
+      const artist = makeArtist({ id: 'a1', slug: 'new-artist' });
+      const song = makeSong({ id: 's1', artistId: 'a1' });
+      const songWithRelations = {
+        ...song,
+        artist: { id: 'a1', name: 'New Artist', slug: 'new-artist' },
+        songGenres: [],
+      };
+
+      artistRepo.findBySlug.mockResolvedValue(artist);
+      songRepo.listByArtist.mockResolvedValue([songWithRelations]);
+      songRepo.countPublishedTabsBatch.mockResolvedValue(new Map());
+
+      const result = await service.getArtistBySlug('new-artist');
+
+      expect(result.songs[0].publishedTabCount).toBe(0);
     });
   });
 });

@@ -2,7 +2,7 @@
 // (the source uses import.meta.url which breaks under CJS).
 jest.mock('@src/generated/prisma/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client');
+  return require('../../../../dist/generated/prisma/client.js');
 });
 jest.mock(
   '@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs',
@@ -22,23 +22,27 @@ jest.mock(
 );
 
 import type { User } from '@src/generated/prisma/client';
+import { UserStatus } from '@src/generated/prisma/client';
 
 import { AuthService } from '../auth.service';
 import { UserRepository } from '../repositories/user.repository';
 
 const claims = { sub: 'sub-1', email: 'a@b.com', displayName: 'A B' };
-const existingUser = { id: 'u1', email: 'a@b.com' } as unknown as User;
-const newUser = { id: 'u2', email: 'a@b.com' } as unknown as User;
+const existingUser = { id: 'u1', email: 'a@b.com', status: UserStatus.ACTIVE } as User;
+const newUser = { id: 'u2', email: 'a@b.com', status: UserStatus.ACTIVE } as User;
+const blockedUser = { id: 'u3', email: 'blocked@b.com', status: UserStatus.BLOCKED } as User;
 
 describe('AuthService', () => {
   let findBySupabaseAuthId: jest.Mock;
   let create: jest.Mock;
+  let updateProfile: jest.Mock;
   let service: AuthService;
 
   beforeEach((): void => {
     findBySupabaseAuthId = jest.fn();
     create = jest.fn();
-    const users = { findBySupabaseAuthId, create } as unknown as UserRepository;
+    updateProfile = jest.fn();
+    const users = { findBySupabaseAuthId, create, updateProfile } as unknown as UserRepository;
     service = new AuthService(users);
   });
 
@@ -100,5 +104,51 @@ describe('AuthService', () => {
 
     await expect(service.syncUser(claims)).rejects.toThrow('boom');
     expect(findBySupabaseAuthId).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolveActiveUser returns the synced user when status is ACTIVE', async (): Promise<void> => {
+    findBySupabaseAuthId.mockResolvedValue(existingUser);
+
+    const result = await service.resolveActiveUser(claims);
+
+    expect(result).toBe(existingUser);
+  });
+
+  it('resolveActiveUser throws ACCOUNT_BLOCKED when synced user is BLOCKED', async (): Promise<void> => {
+    findBySupabaseAuthId.mockResolvedValue(blockedUser);
+
+    await expect(service.resolveActiveUser(claims)).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_BLOCKED' },
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('updates displayName via repository', async (): Promise<void> => {
+      const updated = { ...existingUser, displayName: 'New Name' } as User;
+      updateProfile.mockResolvedValue(updated);
+
+      const result = await service.updateProfile('u1', { displayName: 'New Name' });
+
+      expect(result).toBe(updated);
+      expect(updateProfile).toHaveBeenCalledWith('u1', { displayName: 'New Name' });
+    });
+
+    it('clears displayName when null is passed', async (): Promise<void> => {
+      const updated = { ...existingUser, displayName: null } as User;
+      updateProfile.mockResolvedValue(updated);
+
+      const result = await service.updateProfile('u1', { displayName: null });
+
+      expect(result.displayName).toBeNull();
+      expect(updateProfile).toHaveBeenCalledWith('u1', { displayName: null });
+    });
+
+    it('passes undefined displayName when not provided', async (): Promise<void> => {
+      updateProfile.mockResolvedValue(existingUser);
+
+      await service.updateProfile('u1', {});
+
+      expect(updateProfile).toHaveBeenCalledWith('u1', { displayName: undefined });
+    });
   });
 });

@@ -9,6 +9,10 @@ export const ListPublishedTabsSchema = z.object({
   tabType: z.nativeEnum(TabType).optional(),
   instrument: z.nativeEnum(Instrument).optional(),
   difficulty: z.nativeEnum(Difficulty).optional(),
+  genreId: z.string().uuid().optional(),
+  artistId: z.string().uuid().optional(),
+  sortBy: z.enum(['createdAt', 'publishedAt']).default('createdAt').optional(),
+  order: z.enum(['asc', 'desc']).default('desc').optional(),
 });
 
 export type ListPublishedTabsParams = z.infer<typeof ListPublishedTabsSchema>;

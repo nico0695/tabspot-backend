@@ -74,6 +74,17 @@ export class UserRepository {
     });
   }
 
+  async updateStatus(id: string, status: UserStatus, blockedAt: Date | null): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { status, blockedAt },
+    });
+  }
+
+  async updateProfile(id: string, data: { displayName?: string | null }): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data });
+  }
+
   async countAll(): Promise<number> {
     return this.prisma.user.count();
   }

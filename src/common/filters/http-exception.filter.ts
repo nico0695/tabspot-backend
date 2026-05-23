@@ -79,6 +79,7 @@ function statusToCode(status: number): string {
     405: 'METHOD_NOT_ALLOWED',
     409: 'CONFLICT',
     422: 'VALIDATION_FAILED',
+    429: 'RATE_LIMIT_EXCEEDED',
     500: 'INTERNAL_ERROR',
   };
   return map[status] ?? `HTTP_${status}`;

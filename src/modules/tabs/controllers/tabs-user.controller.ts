@@ -22,6 +22,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
+import { Throttle } from '@nestjs/throttler';
+
+import { THROTTLE_WRITE } from '@common/constants/throttle';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
 import { AuthGuard } from '@common/guards/auth.guard';
 import { ApiAuthErrors } from '@common/openapi/api-error-responses.decorator';
@@ -73,6 +76,7 @@ function toUserTabResponse(tab: {
 
 @ApiTags('tabs')
 @ApiBearerAuth()
+@Throttle(THROTTLE_WRITE)
 @UseGuards(AuthGuard)
 @Controller({ path: 'me/tabs', version: '1' })
 export class TabsUserController {

@@ -1,7 +1,11 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
+import { encodeCursor, decodeCursor } from '@common/utils/cursor';
 import type { Artist } from '@src/generated/prisma/client';
-import type { ArtistWhereInput } from '@src/generated/prisma/models';
+import type {
+  ArtistOrderByWithRelationInput,
+  ArtistWhereInput,
+} from '@src/generated/prisma/models';
 import { PrismaService } from '@src/prisma/prisma.service';
 
 export interface ListOffsetParams {
@@ -20,6 +24,8 @@ export interface ListCursorParams {
   cursor?: string;
   limit: number;
   q?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
 }
 
 export interface ListCursorResult {
@@ -28,50 +34,76 @@ export interface ListCursorResult {
   hasMore: boolean;
 }
 
-function encodeCursor(id: string): string {
-  return Buffer.from(JSON.stringify({ id })).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { id: string } {
-  try {
-    const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      typeof (parsed as Record<string, unknown>)['id'] !== 'string'
-    ) {
-      throw new Error('malformed');
-    }
-    return { id: (parsed as Record<string, string>)['id'] };
-  } catch {
-    throw new BadRequestException({ code: 'INVALID_CURSOR', message: 'Invalid cursor' });
-  }
-}
-
 @Injectable()
 export class ArtistRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listCursor({ cursor, limit, q }: ListCursorParams): Promise<ListCursorResult> {
+  async findAll(): Promise<Artist[]> {
+    return this.prisma.artist.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  async listCursor({
+    cursor,
+    limit,
+    q,
+    sortBy: rawSortBy,
+    order: rawOrder,
+  }: ListCursorParams): Promise<ListCursorResult> {
+    const sortBy = rawSortBy ?? 'name';
+    const order = rawOrder ?? 'asc';
+
     const where: ArtistWhereInput = {};
 
+    // ── cursor (sort-aware keyset pagination) ──────────────────────────
     if (cursor !== undefined) {
       const decoded = decodeCursor(cursor);
-      where.id = { gt: decoded.id };
+      if (decoded.sortBy && decoded.sortValue !== undefined) {
+        const comp = order === 'desc' ? 'lt' : 'gt';
+        if (decoded.sortBy === 'name') {
+          where.OR = [
+            { name: { [comp]: decoded.sortValue } },
+            { name: decoded.sortValue as string, id: { [comp]: decoded.id } },
+          ];
+        } else if (decoded.sortBy === 'createdAt') {
+          const sortDate = new Date(decoded.sortValue as string);
+          where.OR = [
+            { createdAt: { [comp]: sortDate } },
+            { createdAt: sortDate, id: { [comp]: decoded.id } },
+          ];
+        }
+      } else {
+        // Legacy id-only cursor
+        where.id = { gt: decoded.id };
+      }
     }
+
     if (q !== undefined) {
       where.name = { contains: q, mode: 'insensitive' };
     }
 
+    // ── orderBy (composite for stable pagination) ──────────────────────
+    const orderBy: ArtistOrderByWithRelationInput[] = [{ [sortBy]: order }, { id: order }];
+
     const rows = await this.prisma.artist.findMany({
       where,
-      orderBy: { id: 'asc' },
+      orderBy,
       take: limit + 1,
     });
 
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
-    const nextCursor = hasMore ? encodeCursor(items[items.length - 1].id) : null;
+
+    let nextCursor: string | null = null;
+    if (hasMore) {
+      const lastItem = items[items.length - 1];
+      let sortValue: string | undefined;
+      if (sortBy === 'name') {
+        sortValue = lastItem.name;
+      } else if (sortBy === 'createdAt') {
+        sortValue = lastItem.createdAt.toISOString();
+      }
+      nextCursor = encodeCursor({ id: lastItem.id, sortBy, sortValue });
+    }
 
     return { items, nextCursor, hasMore };
   }

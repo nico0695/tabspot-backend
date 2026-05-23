@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 
 import type { User } from '@src/generated/prisma/client';
+import { UserStatus } from '@src/generated/prisma/client';
 
 import { UserRepository } from './repositories/user.repository';
 
@@ -22,6 +23,17 @@ function isUniqueViolation(error: unknown): boolean {
 @Injectable()
 export class AuthService {
   constructor(private readonly users: UserRepository) {}
+
+  private ensureUserIsActive(user: User): User {
+    if (user.status === UserStatus.BLOCKED) {
+      throw new ForbiddenException({
+        code: 'ACCOUNT_BLOCKED',
+        message: 'Account is blocked',
+      });
+    }
+
+    return user;
+  }
 
   async syncUser(claims: SyncUserClaims): Promise<User> {
     const existing = await this.users.findBySupabaseAuthId(claims.sub);
@@ -45,5 +57,15 @@ export class AuthService {
       }
       return recovered;
     }
+  }
+
+  async resolveActiveUser(claims: SyncUserClaims): Promise<User> {
+    const user = await this.syncUser(claims);
+
+    return this.ensureUserIsActive(user);
+  }
+
+  async updateProfile(userId: string, data: { displayName?: string | null }): Promise<User> {
+    return this.users.updateProfile(userId, { displayName: data.displayName });
   }
 }

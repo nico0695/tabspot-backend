@@ -42,16 +42,19 @@ function makeUser(overrides: Partial<User> = {}): User {
 describe('AdminUsersController', (): void => {
   let listUsers: jest.Mock;
   let changeUserRole: jest.Mock;
+  let changeUserStatus: jest.Mock;
   let controller: AdminUsersController;
   let user: User;
 
   beforeEach((): void => {
     listUsers = jest.fn();
     changeUserRole = jest.fn();
+    changeUserStatus = jest.fn();
 
     const adminService = {
       listUsers,
       changeUserRole,
+      changeUserStatus,
     } as unknown as AdminService;
 
     controller = new AdminUsersController(adminService);
@@ -106,6 +109,21 @@ describe('AdminUsersController', (): void => {
       const result = await controller.changeRole('target-1', user, body);
 
       expect(changeUserRole).toHaveBeenCalledWith('target-1', 'USER', 'admin-1');
+      expect(result).toBe(updated);
+    });
+  });
+
+  // ── changeStatus ────────────────────────────────────────────────────────
+
+  describe('changeStatus', (): void => {
+    it('calls adminService.changeUserStatus with id, body.status, and user.id', async (): Promise<void> => {
+      const updated = makeUser({ id: 'target-1', status: 'BLOCKED', blockedAt: new Date() });
+      changeUserStatus.mockResolvedValue(updated);
+
+      const body = { status: 'BLOCKED' as const };
+      const result = await controller.changeStatus('target-1', user, body);
+
+      expect(changeUserStatus).toHaveBeenCalledWith('target-1', 'BLOCKED', 'admin-1');
       expect(result).toBe(updated);
     });
   });

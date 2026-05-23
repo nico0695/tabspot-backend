@@ -22,7 +22,7 @@ jest.mock(
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 import type { Tab, User } from '@src/generated/prisma/client';
-import { TabStatus } from '@src/generated/prisma/client';
+import { TabStatus, UserStatus } from '@src/generated/prisma/client';
 
 import { AdminService } from '../services/admin.service';
 import type { TabsService } from '@modules/tabs/tabs.service';
@@ -77,6 +77,7 @@ describe('AdminService', (): void => {
   let listPaginated: jest.Mock;
   let findById: jest.Mock;
   let updateRole: jest.Mock;
+  let updateStatus: jest.Mock;
   let countAll: jest.Mock;
   let service: AdminService;
 
@@ -89,6 +90,7 @@ describe('AdminService', (): void => {
     listPaginated = jest.fn();
     findById = jest.fn();
     updateRole = jest.fn();
+    updateStatus = jest.fn();
     countAll = jest.fn();
 
     const mockTabsService = {
@@ -106,6 +108,7 @@ describe('AdminService', (): void => {
       listPaginated,
       findById,
       updateRole,
+      updateStatus,
       countAll,
     } as unknown as UserRepository;
 
@@ -201,6 +204,61 @@ describe('AdminService', (): void => {
         NotFoundException,
       );
       expect(updateRole).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── changeUserStatus ────────────────────────────────────────────────────
+
+  describe('changeUserStatus', (): void => {
+    it('finds user and calls updateStatus with BLOCKED and a timestamp', async (): Promise<void> => {
+      const user = makeUser({ id: 'target-1' });
+      const updated = makeUser({
+        id: 'target-1',
+        status: 'BLOCKED',
+        blockedAt: new Date('2026-05-09T00:00:00Z'),
+      });
+      findById.mockResolvedValue(user);
+      updateStatus.mockResolvedValue(updated);
+
+      const result = await service.changeUserStatus('target-1', UserStatus.BLOCKED, 'admin-1');
+
+      expect(result).toBe(updated);
+      expect(findById).toHaveBeenCalledWith('target-1');
+      expect(updateStatus).toHaveBeenCalledTimes(1);
+      expect(updateStatus).toHaveBeenCalledWith('target-1', UserStatus.BLOCKED, expect.any(Date));
+    });
+
+    it('finds user and clears blockedAt when setting ACTIVE', async (): Promise<void> => {
+      const user = makeUser({
+        id: 'target-1',
+        status: 'BLOCKED',
+        blockedAt: new Date('2026-05-01T00:00:00Z'),
+      });
+      const updated = makeUser({ id: 'target-1', status: 'ACTIVE', blockedAt: null });
+      findById.mockResolvedValue(user);
+      updateStatus.mockResolvedValue(updated);
+
+      const result = await service.changeUserStatus('target-1', UserStatus.ACTIVE, 'admin-1');
+
+      expect(result).toBe(updated);
+      expect(updateStatus).toHaveBeenCalledWith('target-1', UserStatus.ACTIVE, null);
+    });
+
+    it('throws ForbiddenException with SELF_STATUS_CHANGE when targeting self', async (): Promise<void> => {
+      await expect(
+        service.changeUserStatus('admin-1', UserStatus.BLOCKED, 'admin-1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(findById).not.toHaveBeenCalled();
+      expect(updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException with USER_NOT_FOUND when user does not exist', async (): Promise<void> => {
+      findById.mockResolvedValue(null);
+
+      await expect(
+        service.changeUserStatus('missing-1', UserStatus.BLOCKED, 'admin-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(updateStatus).not.toHaveBeenCalled();
     });
   });
 

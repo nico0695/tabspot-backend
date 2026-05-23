@@ -42,7 +42,7 @@ export class AuthGuard implements CanActivate {
     }
 
     const claims = await this.idp.verifyToken(match[1]);
-    const user = await this.auth.syncUser({
+    const user = await this.auth.resolveActiveUser({
       sub: claims.sub,
       email: claims.email,
       displayName: claims.displayName,

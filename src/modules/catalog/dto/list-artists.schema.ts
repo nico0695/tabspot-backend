@@ -4,6 +4,8 @@ export const ListArtistsSchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(100).optional(),
+  sortBy: z.enum(['name', 'createdAt']).default('name').optional(),
+  order: z.enum(['asc', 'desc']).default('asc').optional(),
 });
 
 export type ListArtistsParams = z.infer<typeof ListArtistsSchema>;

@@ -2,7 +2,7 @@
 // (AuthGuard transitively imports PrismaService via AuthService → UserRepository).
 jest.mock('@src/generated/prisma/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client');
+  return require('../../../../dist/generated/prisma/client.js');
 });
 jest.mock(
   '@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs',
@@ -21,7 +21,7 @@ jest.mock(
   { virtual: true },
 );
 
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 import type { User } from '@src/generated/prisma/client';
 
@@ -50,12 +50,12 @@ function makeContext(headers: Record<string, string | undefined> = {}): {
 
 describe('AuthGuard', () => {
   let idp: { verifyToken: jest.Mock };
-  let auth: { syncUser: jest.Mock };
+  let auth: { resolveActiveUser: jest.Mock };
   let guard: AuthGuard;
 
   beforeEach((): void => {
     idp = { verifyToken: jest.fn() };
-    auth = { syncUser: jest.fn() };
+    auth = { resolveActiveUser: jest.fn() };
     guard = new AuthGuard(idp as unknown as IIdentityProvider, auth as unknown as AuthService);
   });
 
@@ -91,7 +91,7 @@ describe('AuthGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toMatchObject({
       response: { code: 'TOKEN_EXPIRED' },
     });
-    expect(auth.syncUser).not.toHaveBeenCalled();
+    expect(auth.resolveActiveUser).not.toHaveBeenCalled();
   });
 
   it('on success: verifies token, syncs user, attaches request.user, returns true', async (): Promise<void> => {
@@ -105,19 +105,38 @@ describe('AuthGuard', () => {
     };
     const user = { id: 'u1', email: 'a@b.com', role: 'USER' } as unknown as User;
     idp.verifyToken.mockResolvedValue(claims);
-    auth.syncUser.mockResolvedValue(user);
+    auth.resolveActiveUser.mockResolvedValue(user);
 
     const result = await guard.canActivate(ctx);
 
     expect(result).toBe(true);
     expect(idp.verifyToken).toHaveBeenCalledTimes(1);
     expect(idp.verifyToken).toHaveBeenCalledWith('my.jwt.token');
-    expect(auth.syncUser).toHaveBeenCalledTimes(1);
-    expect(auth.syncUser).toHaveBeenCalledWith({
+    expect(auth.resolveActiveUser).toHaveBeenCalledTimes(1);
+    expect(auth.resolveActiveUser).toHaveBeenCalledWith({
       sub: 'sub-123',
       email: 'a@b.com',
       displayName: 'A B',
     });
     expect(request.user).toBe(user);
+  });
+
+  it('propagates ACCOUNT_BLOCKED when active-user resolution rejects', async (): Promise<void> => {
+    const { ctx } = makeContext({ authorization: 'Bearer my.jwt.token' });
+    const claims: IdentityClaims = {
+      sub: 'sub-123',
+      email: 'a@b.com',
+      displayName: 'A B',
+      emailConfirmed: true,
+      exp: 9999999999,
+    };
+    idp.verifyToken.mockResolvedValue(claims);
+    auth.resolveActiveUser.mockRejectedValue(
+      new ForbiddenException({ code: 'ACCOUNT_BLOCKED', message: 'Account is blocked' }),
+    );
+
+    await expect(guard.canActivate(ctx)).rejects.toMatchObject({
+      response: { code: 'ACCOUNT_BLOCKED' },
+    });
   });
 });

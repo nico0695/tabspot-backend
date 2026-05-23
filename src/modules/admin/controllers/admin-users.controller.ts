@@ -27,6 +27,7 @@ import { RolesGuard } from '@common/guards/roles.guard';
 import type { User } from '@src/generated/prisma/client';
 import { UserRole } from '@src/generated/prisma/client';
 
+import { ChangeStatusDto } from '../dto/change-status.dto';
 import { ChangeRoleDto } from '../dto/change-role.dto';
 import { ListAdminUsersDto } from '../dto/list-admin-users.dto';
 import { AdminPaginatedUsersDto, AdminUserResponseDto } from '../dto/responses';
@@ -77,5 +78,25 @@ export class AdminUsersController {
     @Body() body: ChangeRoleDto,
   ): Promise<User> {
     return this.adminService.changeUserRole(id, body.role, user.id);
+  }
+
+  @Patch(':id/status')
+  @ApiOkResponse({ description: 'User status updated', type: AdminUserResponseDto })
+  @ApiNotFoundResponse({ description: 'User not found', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT', type: ErrorResponseDto })
+  @ApiForbiddenResponse({
+    description: 'Requires ADMIN role / Cannot change own status',
+    type: ErrorResponseDto,
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Validation failed',
+    type: ValidationErrorResponseDto,
+  })
+  async changeStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+    @Body() body: ChangeStatusDto,
+  ): Promise<User> {
+    return this.adminService.changeUserStatus(id, body.status, user.id);
   }
 }
