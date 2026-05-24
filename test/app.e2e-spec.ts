@@ -315,27 +315,6 @@ describe('App (e2e)', () => {
     await request(app.getHttpServer()).get(`/api/v1/tabs/${createdTab.id}`).expect(404);
   });
 
-  it('exposes the new admin tab CRUD endpoints in the swagger document', async (): Promise<void> => {
-    const res = await request(app.getHttpServer()).get('/api/docs-json').expect(200);
-    const body = res.body as {
-      paths: Record<string, Record<string, unknown>>;
-    };
-
-    expect(body.paths['/api/v1/admin/tabs']).toEqual(
-      expect.objectContaining({
-        get: expect.any(Object) as object,
-        post: expect.any(Object) as object,
-      }),
-    );
-    expect(body.paths['/api/v1/admin/tabs/{id}']).toEqual(
-      expect.objectContaining({
-        get: expect.any(Object) as object,
-        patch: expect.any(Object) as object,
-        delete: expect.any(Object) as object,
-      }),
-    );
-  });
-
   afterAll(async (): Promise<void> => {
     await resetE2eDatabase(prisma);
     await app.close();

@@ -379,7 +379,7 @@ describe('PrismaTabRepository', (): void => {
 
       expect(result).toBe(tab);
       expect(tabFindUnique).toHaveBeenCalledWith({
-        where: { id: 'tab-1' },
+        where: { id: 'tab-1', includeDeleted: true },
         include: {
           author: {
             select: {
