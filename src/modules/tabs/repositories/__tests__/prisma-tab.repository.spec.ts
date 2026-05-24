@@ -26,7 +26,7 @@ import { TabStatus } from '@src/generated/prisma/client';
 
 import { PrismaTabRepository } from '../prisma-tab.repository';
 import type { PrismaService } from '@src/prisma/prisma.service';
-import type { TabWithAuthor } from '../../ports/tab-repository.port';
+import type { AdminTabRow, TabWithAuthor } from '../../ports/tab-repository.port';
 
 function makeTab(overrides: Partial<Tab> = {}): Tab {
   return {
@@ -55,6 +55,30 @@ function makeTabWithAuthor(overrides: Partial<Tab> = {}): TabWithAuthor {
   return {
     ...makeTab(overrides),
     author: { displayName: 'Test User' },
+  };
+}
+
+function makeAdminTab(overrides: Partial<Tab> = {}): AdminTabRow {
+  return {
+    ...makeTab(overrides),
+    author: {
+      id: 'user-1',
+      displayName: 'Test User',
+      email: 'user@example.com',
+      status: 'ACTIVE',
+      role: 'USER',
+    },
+    song: {
+      id: 'song-1',
+      title: 'Test Song',
+      slug: 'test-song',
+      deletedAt: null,
+      artist: {
+        id: 'artist-1',
+        name: 'Test Artist',
+        slug: 'test-artist',
+      },
+    },
   };
 }
 
@@ -113,9 +137,47 @@ describe('PrismaTabRepository', (): void => {
           instrument: 'GUITAR',
           difficulty: 'BEGINNER',
           titleOverride: null,
+          status: TabStatus.DRAFT,
+          submittedAt: null,
+          publishedAt: null,
+          moderatedByUserId: null,
+          moderationNotes: null,
           versionNumber: 1,
         },
       });
+    });
+
+    it('persists admin-provided status metadata when supplied', async (): Promise<void> => {
+      const input = {
+        songId: 'song-1',
+        authorUserId: 'admin-1',
+        content: 'content',
+        tabType: 'CHORDS',
+        instrument: 'GUITAR',
+        difficulty: 'BEGINNER',
+        status: TabStatus.PUBLISHED,
+        submittedAt: new Date('2026-02-01T00:00:00.000Z'),
+        publishedAt: new Date('2026-02-02T00:00:00.000Z'),
+        moderatedByUserId: 'admin-1',
+        moderationNotes: null,
+      };
+      const created = makeTab({ status: TabStatus.PUBLISHED });
+      tabCreate.mockResolvedValue(created);
+
+      await repo.create(input);
+
+      const [[callArg]] = tabCreate.mock.calls as [{ data: Record<string, unknown> }][];
+
+      expect(callArg).toBeDefined();
+      expect(callArg.data).toEqual(
+        expect.objectContaining({
+          status: TabStatus.PUBLISHED,
+          submittedAt: input.submittedAt,
+          publishedAt: input.publishedAt,
+          moderatedByUserId: 'admin-1',
+          moderationNotes: null,
+        }),
+      );
     });
 
     it('throws BadRequestException with INVALID_SONG_ID on FK violation (P2003)', async (): Promise<void> => {
@@ -195,6 +257,18 @@ describe('PrismaTabRepository', (): void => {
       expect(tabUpdate).toHaveBeenCalledWith({
         where: { id: 'tab-1' },
         data: { content: 'new content' },
+      });
+    });
+
+    it('updates moderationNotes when provided', async (): Promise<void> => {
+      const updated = makeTab({ moderationNotes: 'Needs work' });
+      tabUpdate.mockResolvedValue(updated);
+
+      await repo.updateContent('tab-1', { moderationNotes: 'Needs work' });
+
+      expect(tabUpdate).toHaveBeenCalledWith({
+        where: { id: 'tab-1' },
+        data: { moderationNotes: 'Needs work' },
       });
     });
   });
@@ -294,11 +368,53 @@ describe('PrismaTabRepository', (): void => {
     });
   });
 
+  // ── findAdminById ─────────────────────────────────────────────────────
+
+  describe('findAdminById', (): void => {
+    it('returns admin tab detail with enriched author and song', async (): Promise<void> => {
+      const tab = makeAdminTab();
+      tabFindUnique.mockResolvedValue(tab);
+
+      const result = await repo.findAdminById('tab-1');
+
+      expect(result).toBe(tab);
+      expect(tabFindUnique).toHaveBeenCalledWith({
+        where: { id: 'tab-1' },
+        include: {
+          author: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              status: true,
+              role: true,
+            },
+          },
+          song: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              deletedAt: true,
+              artist: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    });
+  });
+
   // ── findAllAdmin ───────────────────────────────────────────────────────
 
   describe('findAllAdmin', (): void => {
     it('filters out soft-deleted tabs by default', async (): Promise<void> => {
-      const tabs = [makeTabWithAuthor()];
+      const tabs = [makeAdminTab()];
       tabFindMany.mockResolvedValue(tabs);
       tabCount.mockResolvedValue(1);
 
@@ -310,13 +426,38 @@ describe('PrismaTabRepository', (): void => {
         orderBy: { createdAt: 'desc' },
         skip: 0,
         take: 20,
-        include: { author: { select: { displayName: true } } },
+        include: {
+          author: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              status: true,
+              role: true,
+            },
+          },
+          song: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              deletedAt: true,
+              artist: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+        },
       });
       expect(tabCount).toHaveBeenCalledWith({ where: { deletedAt: null } });
     });
 
     it('passes includeDeleted sentinel when admin requests deleted tabs', async (): Promise<void> => {
-      const tabs = [makeTabWithAuthor({ deletedAt: new Date('2026-03-01') })];
+      const tabs = [makeAdminTab({ deletedAt: new Date('2026-03-01') })];
       tabFindMany.mockResolvedValue(tabs);
       tabCount.mockResolvedValue(1);
 
@@ -327,7 +468,32 @@ describe('PrismaTabRepository', (): void => {
         orderBy: { createdAt: 'desc' },
         skip: 10,
         take: 10,
-        include: { author: { select: { displayName: true } } },
+        include: {
+          author: {
+            select: {
+              id: true,
+              displayName: true,
+              email: true,
+              status: true,
+              role: true,
+            },
+          },
+          song: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              deletedAt: true,
+              artist: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+        },
       });
       expect(tabCount).toHaveBeenCalledWith({ where: { includeDeleted: true } });
     });

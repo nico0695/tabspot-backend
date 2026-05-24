@@ -46,6 +46,40 @@ interface TabResponse {
   updatedAt: string;
 }
 
+interface AdminTabDetailResponse extends TabResponse {
+  deletedAt: string | null;
+  moderationNotes: string | null;
+  moderatedByUserId: string | null;
+  song: {
+    id: string;
+    title: string;
+    slug: string;
+    deletedAt: string | null;
+    artist: {
+      id: string;
+      name: string;
+      slug: string;
+    };
+  };
+  author: {
+    id: string;
+    displayName: string | null;
+    email: string;
+    status: string;
+    role: string;
+  };
+}
+
+interface AdminListTabsResponse {
+  data: AdminTabDetailResponse[];
+  pageInfo: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+}
+
 interface ListPublishedTabsResponse {
   data: Array<{
     id: string;
@@ -177,6 +211,129 @@ describe('App (e2e)', () => {
     });
 
     await request(app.getHttpServer()).get(`/api/v1/tabs/${rejectedDraft.id}`).expect(404);
+  });
+
+  it('supports admin CRUD for tabs with enriched detail/list payloads and soft-delete visibility rules', async (): Promise<void> => {
+    const createPayload = {
+      songId,
+      content: '{title: Admin Created}\n[C]Admin [G]tab',
+      tabType: 'CHORDS',
+      instrument: 'GUITAR',
+      difficulty: 'BEGINNER',
+      titleOverride: 'Admin Published Tab',
+      status: 'PUBLISHED',
+    };
+
+    const createRes = await request(app.getHttpServer())
+      .post('/api/v1/admin/tabs')
+      .set('Authorization', bearer(E2E_ADMIN_TOKEN))
+      .send(createPayload)
+      .expect(201);
+    const createdTab = createRes.body as TabResponse;
+    expect(createdTab).toMatchObject({
+      songId,
+      authorUserId: '20000000-0000-4000-8000-000000000002',
+      status: 'PUBLISHED',
+    });
+    expect(createdTab.publishedAt).not.toBeNull();
+
+    const detailRes = await request(app.getHttpServer())
+      .get(`/api/v1/admin/tabs/${createdTab.id}`)
+      .set('Authorization', bearer(E2E_ADMIN_TOKEN))
+      .expect(200);
+    const detail = detailRes.body as AdminTabDetailResponse;
+    expect(detail).toMatchObject({
+      id: createdTab.id,
+      deletedAt: null,
+      song: {
+        id: songId,
+        title: 'E2E Song',
+        slug: 'e2e-song',
+        artist: {
+          name: 'E2E Artist',
+          slug: 'e2e-artist',
+        },
+      },
+      author: {
+        email: 'e2e-admin@example.com',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      },
+    });
+
+    const listRes = await request(app.getHttpServer())
+      .get('/api/v1/admin/tabs?page=1&pageSize=20')
+      .set('Authorization', bearer(E2E_ADMIN_TOKEN))
+      .expect(200);
+    const listBody = listRes.body as AdminListTabsResponse;
+    const createdListEntry = listBody.data.find((tab) => tab.id === createdTab.id);
+    expect(createdListEntry).toBeDefined();
+    expect(createdListEntry?.song.slug).toBe('e2e-song');
+    expect(createdListEntry?.author.email).toBe('e2e-admin@example.com');
+
+    const patchRes = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/tabs/${createdTab.id}`)
+      .set('Authorization', bearer(E2E_ADMIN_TOKEN))
+      .send({
+        content: '{title: Admin Created}\n[Am]Edited [G]tab',
+        status: 'REJECTED',
+        moderationNotes: 'Admin override rejection',
+      })
+      .expect(200);
+    const patchedTab = patchRes.body as TabResponse;
+    expect(patchedTab).toMatchObject({
+      id: createdTab.id,
+      status: 'REJECTED',
+      content: '{title: Admin Created}\n[Am]Edited [G]tab',
+      moderationNotes: 'Admin override rejection',
+      moderatedByUserId: '20000000-0000-4000-8000-000000000002',
+    });
+    expect(patchedTab.submittedAt).not.toBeNull();
+    expect(patchedTab.publishedAt).toBeNull();
+
+    const republishRes = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/tabs/${createdTab.id}`)
+      .set('Authorization', bearer(E2E_ADMIN_TOKEN))
+      .send({ status: 'PUBLISHED' })
+      .expect(200);
+    const republishedTab = republishRes.body as TabResponse;
+    expect(republishedTab.status).toBe('PUBLISHED');
+    expect(republishedTab.publishedAt).not.toBeNull();
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/admin/tabs/${createdTab.id}`)
+      .set('Authorization', bearer(E2E_ADMIN_TOKEN))
+      .expect(204);
+
+    const deletedDetailRes = await request(app.getHttpServer())
+      .get(`/api/v1/admin/tabs/${createdTab.id}`)
+      .set('Authorization', bearer(E2E_ADMIN_TOKEN))
+      .expect(200);
+    const deletedDetail = deletedDetailRes.body as AdminTabDetailResponse;
+    expect(deletedDetail.deletedAt).not.toBeNull();
+
+    await request(app.getHttpServer()).get(`/api/v1/tabs/${createdTab.id}`).expect(404);
+  });
+
+  it('exposes the new admin tab CRUD endpoints in the swagger document', async (): Promise<void> => {
+    const res = await request(app.getHttpServer()).get('/api/docs-json').expect(200);
+    const body = res.body as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+
+    expect(body.paths['/api/v1/admin/tabs']).toEqual(
+      expect.objectContaining({
+        get: expect.any(Object) as object,
+        post: expect.any(Object) as object,
+      }),
+    );
+    expect(body.paths['/api/v1/admin/tabs/{id}']).toEqual(
+      expect.objectContaining({
+        get: expect.any(Object) as object,
+        patch: expect.any(Object) as object,
+        delete: expect.any(Object) as object,
+      }),
+    );
   });
 
   afterAll(async (): Promise<void> => {

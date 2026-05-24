@@ -10,10 +10,16 @@ export type { AdminSongResponse } from './admin-song-response.schema';
 export {
   AdminTabResponseDto,
   AdminTabResponseSchema,
+  AdminTabWithRelationsResponseDto,
+  AdminTabWithRelationsResponseSchema,
   AdminTabWithAuthorResponseDto,
   AdminTabWithAuthorResponseSchema,
 } from './admin-tab-response.schema';
-export type { AdminTabResponse, AdminTabWithAuthorResponse } from './admin-tab-response.schema';
+export type {
+  AdminTabResponse,
+  AdminTabWithAuthorResponse,
+  AdminTabWithRelationsResponse,
+} from './admin-tab-response.schema';
 
 export { AdminUserResponseDto, AdminUserResponseSchema } from './admin-user-response.schema';
 export type { AdminUserResponse } from './admin-user-response.schema';

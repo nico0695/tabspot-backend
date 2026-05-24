@@ -26,10 +26,12 @@ import { TabStatus, UserStatus } from '@src/generated/prisma/client';
 
 import { AdminService } from '../services/admin.service';
 import type { TabsService } from '@modules/tabs/tabs.service';
-import type { ITabRepository, TabWithAuthor } from '@modules/tabs/ports/tab-repository.port';
+import type { AdminTabRow, ITabRepository } from '@modules/tabs/ports/tab-repository.port';
 import type { UserRepository } from '@modules/auth/repositories/user.repository';
+import type { CreateAdminTabInput } from '../dto/create-admin-tab.schema';
+import type { UpdateAdminTabInput } from '../dto/update-admin-tab.schema';
 
-function makeTab(overrides: Partial<Tab> = {}): TabWithAuthor {
+function makeTab(overrides: Partial<Tab> = {}): AdminTabRow {
   return {
     id: 'tab-1',
     songId: 'song-1',
@@ -48,9 +50,26 @@ function makeTab(overrides: Partial<Tab> = {}): TabWithAuthor {
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     deletedAt: null,
-    author: { displayName: 'Test User' },
+    author: {
+      id: 'user-1',
+      displayName: 'Test User',
+      email: 'user@example.com',
+      status: 'ACTIVE',
+      role: 'USER',
+    },
+    song: {
+      id: 'song-1',
+      title: 'Test Song',
+      slug: 'test-song',
+      deletedAt: null,
+      artist: {
+        id: 'artist-1',
+        name: 'Test Artist',
+        slug: 'test-artist',
+      },
+    },
     ...overrides,
-  } as TabWithAuthor;
+  } as AdminTabRow;
 }
 
 function makeUser(overrides: Partial<User> = {}): User {
@@ -69,9 +88,13 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 describe('AdminService', (): void => {
+  let findAdminById: jest.Mock;
   let findAllAdmin: jest.Mock;
   let countByStatus: jest.Mock;
   let countCreatedSince: jest.Mock;
+  let createAdminTab: jest.Mock;
+  let updateAdminTab: jest.Mock;
+  let softDeleteAdminTab: jest.Mock;
   let publishTab: jest.Mock;
   let rejectTab: jest.Mock;
   let listPaginated: jest.Mock;
@@ -82,9 +105,13 @@ describe('AdminService', (): void => {
   let service: AdminService;
 
   beforeEach((): void => {
+    findAdminById = jest.fn();
     findAllAdmin = jest.fn();
     countByStatus = jest.fn();
     countCreatedSince = jest.fn();
+    createAdminTab = jest.fn();
+    updateAdminTab = jest.fn();
+    softDeleteAdminTab = jest.fn();
     publishTab = jest.fn();
     rejectTab = jest.fn();
     listPaginated = jest.fn();
@@ -94,11 +121,15 @@ describe('AdminService', (): void => {
     countAll = jest.fn();
 
     const mockTabsService = {
+      createAdminTab,
+      updateAdminTab,
+      softDeleteAdminTab,
       publishTab,
       rejectTab,
     } as unknown as TabsService;
 
     const mockTabRepo = {
+      findAdminById,
       findAllAdmin,
       countByStatus,
       countCreatedSince,
@@ -127,6 +158,74 @@ describe('AdminService', (): void => {
 
       expect(response).toBe(result);
       expect(findAllAdmin).toHaveBeenCalledWith(filters);
+    });
+  });
+
+  // ── getTabById ───────────────────────────────────────────────────────────
+
+  describe('getTabById', (): void => {
+    it('returns admin tab detail when found', async (): Promise<void> => {
+      const tab = makeTab();
+      findAdminById.mockResolvedValue(tab);
+
+      const result = await service.getTabById('tab-1');
+
+      expect(result).toBe(tab);
+      expect(findAdminById).toHaveBeenCalledWith('tab-1');
+    });
+
+    it('throws NotFoundException when tab does not exist', async (): Promise<void> => {
+      findAdminById.mockResolvedValue(null);
+
+      await expect(service.getTabById('missing')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── createTab ────────────────────────────────────────────────────────────
+
+  describe('createTab', (): void => {
+    it('delegates to tabsService.createAdminTab', async (): Promise<void> => {
+      const input: CreateAdminTabInput = {
+        songId: 'song-1',
+        content: 'content',
+        tabType: 'CHORDS',
+        instrument: 'GUITAR',
+        difficulty: 'BEGINNER',
+      };
+      const created = makeTab();
+      createAdminTab.mockResolvedValue(created);
+
+      const result = await service.createTab(input, 'admin-1');
+
+      expect(result).toBe(created);
+      expect(createAdminTab).toHaveBeenCalledWith(input, 'admin-1');
+    });
+  });
+
+  // ── updateTab ────────────────────────────────────────────────────────────
+
+  describe('updateTab', (): void => {
+    it('delegates to tabsService.updateAdminTab', async (): Promise<void> => {
+      const input: UpdateAdminTabInput = { status: 'PUBLISHED' };
+      const updated = makeTab({ status: TabStatus.PUBLISHED });
+      updateAdminTab.mockResolvedValue(updated);
+
+      const result = await service.updateTab('tab-1', input, 'admin-1');
+
+      expect(result).toBe(updated);
+      expect(updateAdminTab).toHaveBeenCalledWith('tab-1', input, 'admin-1');
+    });
+  });
+
+  // ── deleteTab ────────────────────────────────────────────────────────────
+
+  describe('deleteTab', (): void => {
+    it('delegates to tabsService.softDeleteAdminTab', async (): Promise<void> => {
+      softDeleteAdminTab.mockResolvedValue(undefined);
+
+      await service.deleteTab('tab-1');
+
+      expect(softDeleteAdminTab).toHaveBeenCalledWith('tab-1');
     });
   });
 

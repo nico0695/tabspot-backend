@@ -4,7 +4,7 @@ import { createZodDto } from 'nestjs-zod';
 import { AdminArtistResponseSchema } from './admin-artist-response.schema';
 import { AdminGenreResponseSchema } from './admin-genre-response.schema';
 import { AdminSongResponseSchema } from './admin-song-response.schema';
-import { AdminTabWithAuthorResponseSchema } from './admin-tab-response.schema';
+import { AdminTabWithRelationsResponseSchema } from './admin-tab-response.schema';
 import { AdminUserResponseSchema } from './admin-user-response.schema';
 
 const OffsetPageInfoSchema = z.object({
@@ -33,7 +33,7 @@ export const AdminPaginatedSongsSchema = z.object({
 export class AdminPaginatedSongsDto extends createZodDto(AdminPaginatedSongsSchema) {}
 
 export const AdminPaginatedTabsSchema = z.object({
-  data: z.array(AdminTabWithAuthorResponseSchema),
+  data: z.array(AdminTabWithRelationsResponseSchema),
   pageInfo: OffsetPageInfoSchema,
 });
 export class AdminPaginatedTabsDto extends createZodDto(AdminPaginatedTabsSchema) {}

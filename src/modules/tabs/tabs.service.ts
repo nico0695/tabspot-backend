@@ -10,6 +10,9 @@ import type { Tab, User } from '@src/generated/prisma/client';
 import { TabStatus, UserRole } from '@src/generated/prisma/client';
 
 import type {
+  AdminCreateTabInput,
+  AdminTabRow,
+  AdminUpdateTabInput,
   ITabRepository,
   ListCursorParams,
   PaginatedResult,
@@ -17,6 +20,7 @@ import type {
   TabDetailRow,
   TabWithAuthor,
   UpdateContentData,
+  UpdateStatusMeta,
 } from './ports/tab-repository.port';
 import { TAB_REPOSITORY } from './ports/tab-repository.port';
 import { CreateTabUseCase } from './use-cases/create-tab.use-case';
@@ -45,6 +49,10 @@ export class TabsService {
     return this.tabRepository.findById(id);
   }
 
+  async findAdminById(id: string): Promise<AdminTabRow | null> {
+    return this.tabRepository.findAdminById(id);
+  }
+
   async findPublicDetail(id: string, user?: User): Promise<TabDetailRow> {
     const tab = await this.tabRepository.findById(id);
 
@@ -68,6 +76,25 @@ export class TabsService {
 
   async createTab(input: CreateTabInput): Promise<Tab> {
     return this.createTabUseCase.execute(input);
+  }
+
+  async createAdminTab(input: AdminCreateTabInput, adminUserId: string): Promise<Tab> {
+    const normalized = this.normalizeAdminStatus(input.status, adminUserId, input.moderationNotes);
+
+    return this.tabRepository.create({
+      songId: input.songId,
+      authorUserId: adminUserId,
+      content: input.content,
+      tabType: input.tabType,
+      instrument: input.instrument,
+      difficulty: input.difficulty,
+      titleOverride: input.titleOverride,
+      status: normalized.status,
+      submittedAt: normalized.meta.submittedAt,
+      publishedAt: normalized.meta.publishedAt,
+      moderatedByUserId: normalized.meta.moderatedByUserId,
+      moderationNotes: normalized.meta.moderationNotes,
+    });
   }
 
   async updateTab(tabId: string, userId: string, data: UpdateContentData): Promise<Tab> {
@@ -98,6 +125,46 @@ export class TabsService {
     return this.submitTabUseCase.execute(tabId, userId);
   }
 
+  async updateAdminTab(
+    tabId: string,
+    input: AdminUpdateTabInput,
+    adminUserId: string,
+  ): Promise<Tab> {
+    const existingTab = await this.tabRepository.findAdminById(tabId);
+
+    if (!existingTab) {
+      throw new NotFoundException({ code: 'TAB_NOT_FOUND', message: 'Tab not found' });
+    }
+
+    const contentUpdate: UpdateContentData = {
+      ...(input.content !== undefined && { content: input.content }),
+      ...(input.tabType !== undefined && { tabType: input.tabType }),
+      ...(input.instrument !== undefined && { instrument: input.instrument }),
+      ...(input.difficulty !== undefined && { difficulty: input.difficulty }),
+      ...(input.titleOverride !== undefined && { titleOverride: input.titleOverride }),
+      ...(input.status === undefined &&
+        input.moderationNotes !== undefined && { moderationNotes: input.moderationNotes }),
+    };
+
+    let currentTab: Tab = existingTab;
+
+    if (Object.keys(contentUpdate).length > 0) {
+      currentTab = await this.tabRepository.updateContent(tabId, contentUpdate);
+    }
+
+    if (input.status !== undefined) {
+      const normalized = this.normalizeAdminStatus(
+        input.status,
+        adminUserId,
+        input.moderationNotes,
+        currentTab,
+      );
+      return this.tabRepository.updateStatus(tabId, normalized.status, normalized.meta);
+    }
+
+    return currentTab;
+  }
+
   async softDeleteTab(tabId: string, userId: string): Promise<void> {
     const tab = await this.tabRepository.findById(tabId);
 
@@ -115,11 +182,76 @@ export class TabsService {
     await this.tabRepository.softDelete(tabId);
   }
 
+  async softDeleteAdminTab(tabId: string): Promise<void> {
+    const tab = await this.tabRepository.findAdminById(tabId);
+
+    if (!tab) {
+      throw new NotFoundException({ code: 'TAB_NOT_FOUND', message: 'Tab not found' });
+    }
+
+    await this.tabRepository.softDelete(tabId);
+  }
+
   async publishTab(tabId: string, moderatorUserId: string): Promise<Tab> {
     return this.publishTabUseCase.execute(tabId, moderatorUserId);
   }
 
   async rejectTab(tabId: string, moderatorUserId: string, notes: string): Promise<Tab> {
     return this.rejectTabUseCase.execute(tabId, moderatorUserId, notes);
+  }
+
+  private normalizeAdminStatus(
+    status: TabStatus | undefined,
+    adminUserId: string,
+    moderationNotes?: string | null,
+    existingTab?: Pick<Tab, 'submittedAt' | 'publishedAt'>,
+  ): { status: TabStatus; meta: UpdateStatusMeta } {
+    const targetStatus = status ?? TabStatus.DRAFT;
+    const now = new Date();
+    const submittedAt = existingTab?.submittedAt ?? now;
+    const publishedAt = existingTab?.publishedAt ?? now;
+
+    switch (targetStatus) {
+      case TabStatus.DRAFT:
+        return {
+          status: targetStatus,
+          meta: {
+            submittedAt: null,
+            publishedAt: null,
+            moderatedByUserId: null,
+            moderationNotes: null,
+          },
+        };
+      case TabStatus.PENDING:
+        return {
+          status: targetStatus,
+          meta: {
+            submittedAt,
+            publishedAt: null,
+            moderatedByUserId: null,
+            moderationNotes: null,
+          },
+        };
+      case TabStatus.PUBLISHED:
+        return {
+          status: targetStatus,
+          meta: {
+            submittedAt,
+            publishedAt,
+            moderatedByUserId: adminUserId,
+            moderationNotes: null,
+          },
+        };
+      case TabStatus.REJECTED:
+        return {
+          status: targetStatus,
+          meta: {
+            submittedAt,
+            publishedAt: null,
+            moderatedByUserId: adminUserId,
+            moderationNotes: moderationNotes ?? null,
+          },
+        };
+    }
   }
 }
