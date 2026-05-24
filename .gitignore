@@ -7,6 +7,12 @@ dist
 sdd-lite/
 
 .env
+.env.production
 
 coverage
 /src/generated/prisma
+
+*old/
+docs-v2/
+
+data-for-seeder/

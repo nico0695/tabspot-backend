@@ -24,7 +24,17 @@ import { TabStatus } from '@src/generated/prisma/client';
 
 import { TabsPublicController } from '../tabs-public.controller';
 import type { TabsService } from '../../tabs.service';
-import type { TabWithAuthor } from '../../ports/tab-repository.port';
+import type { TabDetailRow, TabWithAuthor } from '../../ports/tab-repository.port';
+
+const defaultSong = {
+  id: 'song-1',
+  title: 'Test Song',
+  slug: 'test-song',
+  subtitle: null,
+  releaseYear: 2024,
+  artist: { id: 'artist-1', name: 'Test Artist', slug: 'test-artist' },
+  songGenres: [{ genre: { id: 'genre-1', name: 'Rock', slug: 'rock' } }],
+};
 
 function makeTabWithAuthor(overrides: Partial<Tab> = {}): TabWithAuthor {
   return {
@@ -48,6 +58,13 @@ function makeTabWithAuthor(overrides: Partial<Tab> = {}): TabWithAuthor {
     author: { displayName: 'Test Author' },
     ...overrides,
   } as TabWithAuthor;
+}
+
+function makeTabDetailRow(overrides: Partial<Tab> = {}): TabDetailRow {
+  return {
+    ...makeTabWithAuthor(overrides),
+    song: defaultSong,
+  } as TabDetailRow;
 }
 
 function makeUser(overrides: Partial<User> = {}): User {
@@ -136,7 +153,7 @@ describe('TabsPublicController', (): void => {
 
   describe('detail', (): void => {
     it('calls tabsService.findPublicDetail and returns TabDetail shape', async (): Promise<void> => {
-      const tab = makeTabWithAuthor();
+      const tab = makeTabDetailRow();
       findPublicDetail.mockResolvedValue(tab);
 
       const result = await controller.detail('tab-1', makeUser());
@@ -147,7 +164,6 @@ describe('TabsPublicController', (): void => {
       );
       expect(result).toEqual({
         id: tab.id,
-        songId: tab.songId,
         authorUserId: tab.authorUserId,
         titleOverride: tab.titleOverride,
         content: tab.content,
@@ -161,11 +177,20 @@ describe('TabsPublicController', (): void => {
         publishedAt: tab.publishedAt!.toISOString(),
         createdAt: tab.createdAt.toISOString(),
         updatedAt: tab.updatedAt.toISOString(),
+        song: {
+          id: 'song-1',
+          title: 'Test Song',
+          slug: 'test-song',
+          subtitle: null,
+          releaseYear: 2024,
+          artist: { id: 'artist-1', name: 'Test Artist', slug: 'test-artist' },
+          genres: [{ id: 'genre-1', name: 'Rock', slug: 'rock' }],
+        },
       });
     });
 
     it('works with user = undefined (anonymous)', async (): Promise<void> => {
-      const tab = makeTabWithAuthor();
+      const tab = makeTabDetailRow();
       findPublicDetail.mockResolvedValue(tab);
 
       const result = await controller.detail('tab-1', undefined);
@@ -173,6 +198,7 @@ describe('TabsPublicController', (): void => {
       expect(findPublicDetail).toHaveBeenCalledWith('tab-1', undefined);
       expect(result.authorDisplayName).toBe('Test Author');
       expect(result.id).toBe('tab-1');
+      expect(result.song.title).toBe('Test Song');
     });
   });
 });

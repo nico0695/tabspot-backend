@@ -18,6 +18,7 @@ import type {
   ListCursorParams,
   OffsetPaginatedResult,
   PaginatedResult,
+  TabDetailRow,
   TabWithAuthor,
   UpdateContentData,
   UpdateStatusMeta,
@@ -36,10 +37,23 @@ function isForeignKeyViolation(error: unknown): boolean {
 export class PrismaTabRepository implements ITabRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(id: string): Promise<TabWithAuthor | null> {
+  async findById(id: string): Promise<TabDetailRow | null> {
     return this.prisma.tab.findUnique({
       where: { id },
-      include: { author: { select: { displayName: true } } },
+      include: {
+        author: { select: { displayName: true } },
+        song: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            subtitle: true,
+            releaseYear: true,
+            artist: { select: { id: true, name: true, slug: true } },
+            songGenres: { select: { genre: { select: { id: true, name: true, slug: true } } } },
+          },
+        },
+      },
     });
   }
 

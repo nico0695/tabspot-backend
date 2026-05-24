@@ -12,7 +12,7 @@ import { ListPublishedTabsDto } from '../dto/public/list-published-tabs.dto';
 import { TabDetailDto } from '../dto/public/tab-detail.dto';
 import type { TabDetail } from '../dto/public/tab-detail.schema';
 import type { TabListItem } from '../dto/public/tab-list-item.schema';
-import type { TabWithAuthor } from '../ports/tab-repository.port';
+import type { TabDetailRow, TabWithAuthor } from '../ports/tab-repository.port';
 import { TabsService } from '../tabs.service';
 
 function toTabListItem(tab: TabWithAuthor): TabListItem {
@@ -29,10 +29,9 @@ function toTabListItem(tab: TabWithAuthor): TabListItem {
   };
 }
 
-function toTabDetail(tab: TabWithAuthor): TabDetail {
+function toTabDetail(tab: TabDetailRow): TabDetail {
   return {
     id: tab.id,
-    songId: tab.songId,
     authorUserId: tab.authorUserId,
     titleOverride: tab.titleOverride,
     content: tab.content,
@@ -46,6 +45,15 @@ function toTabDetail(tab: TabWithAuthor): TabDetail {
     publishedAt: tab.publishedAt?.toISOString() ?? null,
     createdAt: tab.createdAt.toISOString(),
     updatedAt: tab.updatedAt.toISOString(),
+    song: {
+      id: tab.song.id,
+      title: tab.song.title,
+      slug: tab.song.slug,
+      subtitle: tab.song.subtitle,
+      releaseYear: tab.song.releaseYear,
+      artist: tab.song.artist,
+      genres: tab.song.songGenres.map((sg) => sg.genre),
+    },
   };
 }
 

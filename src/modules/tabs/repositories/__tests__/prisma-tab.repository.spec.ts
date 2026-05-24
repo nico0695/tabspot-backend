@@ -246,9 +246,23 @@ describe('PrismaTabRepository', (): void => {
 
       expect(result).toBe(tabWithAuthor);
       expect(result?.author.displayName).toBe('Test User');
+      const expectedInclude = {
+        author: { select: { displayName: true } },
+        song: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            subtitle: true,
+            releaseYear: true,
+            artist: { select: { id: true, name: true, slug: true } },
+            songGenres: { select: { genre: { select: { id: true, name: true, slug: true } } } },
+          },
+        },
+      };
       expect(tabFindUnique).toHaveBeenCalledWith({
         where: { id: 'tab-1' },
-        include: { author: { select: { displayName: true } } },
+        include: expectedInclude,
       });
     });
 
@@ -260,7 +274,22 @@ describe('PrismaTabRepository', (): void => {
       expect(result).toBeNull();
       expect(tabFindUnique).toHaveBeenCalledWith({
         where: { id: 'missing' },
-        include: { author: { select: { displayName: true } } },
+        include: {
+          author: { select: { displayName: true } },
+          song: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              subtitle: true,
+              releaseYear: true,
+              artist: { select: { id: true, name: true, slug: true } },
+              songGenres: {
+                select: { genre: { select: { id: true, name: true, slug: true } } },
+              },
+            },
+          },
+        },
       });
     });
   });
