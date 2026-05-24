@@ -3,15 +3,15 @@ import { ApiNotFoundResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
 import { ErrorResponseDto } from '@common/openapi/error-response.dto';
 
-import { ListSongsResponseDto } from './dto/list-songs-response.dto';
-import { ListSongsResponse } from './dto/list-songs-response.schema';
-import { ListSongsDto } from './dto/list-songs.dto';
-import { PaginationQueryDto } from './dto/pagination-query.dto';
-import { SongDetailResponseDto } from './dto/song-detail-response.dto';
-import type { SongDetailResponse } from './dto/song-detail-response.schema';
-import { SongSelectResponseDto } from './dto/song-select-response.dto';
-import type { SongSelectResponse } from './dto/song-select-response.schema';
 import { SongService } from './song.service';
+import { ListSongsDto } from './dto/queries/list-songs.dto';
+import { ListSongsResponseDto } from './dto/responses/list-songs-response.dto';
+import { ListSongsResponse } from './dto/responses/list-songs-response.schema';
+import { SongDetailResponseDto } from './dto/responses/song-detail-response.dto';
+import type { SongDetailResponse } from './dto/responses/song-detail-response.schema';
+import { SongSelectResponseDto } from './dto/responses/song-select-response.dto';
+import type { SongSelectResponse } from './dto/responses/song-select-response.schema';
+import { PaginationQueryDto } from '../shared/dto/queries/pagination-query.dto';
 
 @ApiTags('catalog')
 @Controller({ path: 'songs', version: '1' })

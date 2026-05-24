@@ -3,11 +3,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { TabsService } from '@modules/tabs/tabs.service';
 import type { FindPublishedFilters } from '@modules/tabs/ports/tab-repository.port';
 
-import { ListSongsResponse } from './dto/list-songs-response.schema';
-import { ListSongsParams } from './dto/list-songs.schema';
-import type { SongDetailResponse, SongTabSummary } from './dto/song-detail-response.schema';
-import type { SongSelectResponse } from './dto/song-select-response.schema';
-import { SongRepository } from './repositories/song.repository';
+import { ListSongsParams } from './dto/queries/list-songs.schema';
+import { ListSongsResponse } from './dto/responses/list-songs-response.schema';
+import type {
+  SongDetailResponse,
+  SongTabSummary,
+} from './dto/responses/song-detail-response.schema';
+import type { SongSelectResponse } from './dto/responses/song-select-response.schema';
+import { SongRepository } from '../repositories/song.repository';
 
 @Injectable()
 export class SongService {

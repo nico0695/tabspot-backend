@@ -1,11 +1,11 @@
 jest.mock('@src/generated/prisma/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client');
+  return require('../../../../../dist/generated/prisma/client');
 });
 
 import { SongsPublicController } from '../songs-public.controller';
 import { SongService } from '../song.service';
-import { makeSong } from '../../../../test/factories/make-song';
+import { makeSong } from '../../../../../test/factories/make-song';
 
 describe('SongsPublicController', () => {
   let controller: SongsPublicController;
