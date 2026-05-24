@@ -44,6 +44,10 @@ export interface ListCursorResult {
 export class SongRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findAll(): Promise<Song[]> {
+    return this.prisma.song.findMany({ orderBy: { title: 'asc' } });
+  }
+
   async listCursor(params: ListCursorParams): Promise<ListCursorResult> {
     const sortBy = params.sortBy ?? 'title';
     const order = params.order ?? 'asc';

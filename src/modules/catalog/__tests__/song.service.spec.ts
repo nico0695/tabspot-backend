@@ -18,6 +18,7 @@ describe('SongService', () => {
 
   beforeEach((): void => {
     songRepo = {
+      findAll: jest.fn(),
       listCursor: jest.fn(),
       findBySlug: jest.fn(),
     } as unknown as jest.Mocked<SongRepository>;
@@ -27,6 +28,47 @@ describe('SongService', () => {
     } as unknown as jest.Mocked<TabsService>;
 
     service = new SongService(songRepo, tabsService);
+  });
+
+  describe('getAllForSelect', () => {
+    it('maps repository songs to the lightweight select shape', async (): Promise<void> => {
+      songRepo.findAll.mockResolvedValue([
+        makeSong({
+          id: '00000000-0000-0000-0000-000000000201',
+          title: 'Hey Jude',
+          slug: 'hey-jude',
+        }),
+        makeSong({
+          id: '00000000-0000-0000-0000-000000000202',
+          title: 'Let It Be',
+          slug: 'let-it-be',
+        }),
+      ]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result).toEqual([
+        { id: '00000000-0000-0000-0000-000000000201', title: 'Hey Jude' },
+        { id: '00000000-0000-0000-0000-000000000202', title: 'Let It Be' },
+      ]);
+    });
+
+    it('strips extra song fields from the select response', async (): Promise<void> => {
+      songRepo.findAll.mockResolvedValue([makeSong()]);
+
+      const result = await service.getAllForSelect();
+
+      expect(result[0]).not.toHaveProperty('artistId');
+      expect(result[0]).not.toHaveProperty('slug');
+      expect(result[0]).not.toHaveProperty('subtitle');
+      expect(result[0]).not.toHaveProperty('releaseYear');
+    });
+
+    it('returns an empty array when there are no active songs', async (): Promise<void> => {
+      songRepo.findAll.mockResolvedValue([]);
+
+      await expect(service.getAllForSelect()).resolves.toEqual([]);
+    });
   });
 
   describe('listSongs', () => {

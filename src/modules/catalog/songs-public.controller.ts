@@ -9,12 +9,23 @@ import { ListSongsDto } from './dto/list-songs.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { SongDetailResponseDto } from './dto/song-detail-response.dto';
 import type { SongDetailResponse } from './dto/song-detail-response.schema';
+import { SongSelectResponseDto } from './dto/song-select-response.dto';
+import type { SongSelectResponse } from './dto/song-select-response.schema';
 import { SongService } from './song.service';
 
 @ApiTags('catalog')
 @Controller({ path: 'songs', version: '1' })
 export class SongsPublicController {
   constructor(private readonly songService: SongService) {}
+
+  @Get('all')
+  @ApiOkResponse({
+    description: 'All songs for select/dropdown',
+    type: [SongSelectResponseDto],
+  })
+  async all(): Promise<SongSelectResponse[]> {
+    return this.songService.getAllForSelect();
+  }
 
   @Get()
   @ApiOkResponse({ description: 'Paginated list of songs', type: ListSongsResponseDto })
