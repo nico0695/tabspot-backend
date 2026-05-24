@@ -6,13 +6,16 @@ import { TabStatus, UserStatus } from '@src/generated/prisma/client';
 import { UserRepository } from '@modules/auth/repositories/user.repository';
 import type { ListUsersParams } from '@modules/auth/repositories/user.repository';
 import type {
+  AdminTabRow,
   FindAllAdminFilters,
   ITabRepository,
   OffsetPaginatedResult,
-  TabWithAuthor,
 } from '@modules/tabs/ports/tab-repository.port';
 import { TAB_REPOSITORY } from '@modules/tabs/ports/tab-repository.port';
 import { TabsService } from '@modules/tabs/tabs.service';
+
+import type { CreateAdminTabInput } from '../dto/create-admin-tab.schema';
+import type { UpdateAdminTabInput } from '../dto/update-admin-tab.schema';
 
 export interface DashboardData {
   totalUsers: number;
@@ -29,8 +32,30 @@ export class AdminService {
     private readonly userRepository: UserRepository,
   ) {}
 
-  async listTabs(filters: FindAllAdminFilters): Promise<OffsetPaginatedResult<TabWithAuthor>> {
+  async listTabs(filters: FindAllAdminFilters): Promise<OffsetPaginatedResult<AdminTabRow>> {
     return this.tabRepository.findAllAdmin(filters);
+  }
+
+  async getTabById(tabId: string): Promise<AdminTabRow> {
+    const tab = await this.tabRepository.findAdminById(tabId);
+
+    if (!tab) {
+      throw new NotFoundException({ code: 'TAB_NOT_FOUND', message: 'Tab not found' });
+    }
+
+    return tab;
+  }
+
+  async createTab(input: CreateAdminTabInput, adminUserId: string): Promise<Tab> {
+    return this.tabsService.createAdminTab(input, adminUserId);
+  }
+
+  async updateTab(tabId: string, input: UpdateAdminTabInput, adminUserId: string): Promise<Tab> {
+    return this.tabsService.updateAdminTab(tabId, input, adminUserId);
+  }
+
+  async deleteTab(tabId: string): Promise<void> {
+    await this.tabsService.softDeleteAdminTab(tabId);
   }
 
   async publishTab(tabId: string, moderatorUserId: string): Promise<Tab> {

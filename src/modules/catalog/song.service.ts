@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { TabsService } from '@modules/tabs/tabs.service';
+import type { FindPublishedFilters } from '@modules/tabs/ports/tab-repository.port';
 
 import { ListSongsResponse } from './dto/list-songs-response.schema';
 import { ListSongsParams } from './dto/list-songs.schema';
 import type { SongDetailResponse, SongTabSummary } from './dto/song-detail-response.schema';
+import type { SongSelectResponse } from './dto/song-select-response.schema';
 import { SongRepository } from './repositories/song.repository';
-import type { FindPublishedFilters } from '@modules/tabs/ports/tab-repository.port';
 
 @Injectable()
 export class SongService {
@@ -14,6 +15,11 @@ export class SongService {
     private readonly songRepository: SongRepository,
     private readonly tabsService: TabsService,
   ) {}
+
+  async getAllForSelect(): Promise<SongSelectResponse[]> {
+    const songs = await this.songRepository.findAll();
+    return songs.map((song) => ({ id: song.id, title: song.title }));
+  }
 
   async listSongs(params: ListSongsParams): Promise<ListSongsResponse> {
     const { items, nextCursor, hasMore } = await this.songRepository.listCursor(params);

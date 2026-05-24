@@ -103,6 +103,30 @@ describe('SongRepository (integration)', () => {
     await prisma.$disconnect();
   });
 
+  it('findAll returns active songs ordered by title ascending', async (): Promise<void> => {
+    const artist = await createArtist(prisma, 'the-beatles');
+    await createSong(prisma, artist.id, 'yesterday', 'Yesterday');
+    await createSong(prisma, artist.id, 'hey-jude', 'Hey Jude');
+    await createSong(prisma, artist.id, 'let-it-be', 'Let It Be');
+
+    const result = await repository.findAll();
+
+    expect(result.map((song) => song.title)).toEqual(['Hey Jude', 'Let It Be', 'Yesterday']);
+  });
+
+  it('findAll excludes soft-deleted songs', async (): Promise<void> => {
+    const artist = await createArtist(prisma, 'the-beatles');
+    await createSong(prisma, artist.id, 'hey-jude', 'Hey Jude');
+    await createSong(prisma, artist.id, 'let-it-be', 'Let It Be');
+
+    await prisma.$executeRaw`UPDATE "songs" SET "deleted_at" = NOW() WHERE "slug" = 'hey-jude'`;
+
+    const result = await repository.findAll();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe('Let It Be');
+  });
+
   it('returns all songs when count is less than or equal to limit', async (): Promise<void> => {
     const artist = await createArtist(prisma, 'the-beatles');
     await createSong(prisma, artist.id, 'hey-jude', 'Hey Jude');

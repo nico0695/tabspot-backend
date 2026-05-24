@@ -11,6 +11,7 @@ import type {
 import { PrismaService } from '@src/prisma/prisma.service';
 
 import type {
+  AdminTabRow,
   CreateTabData,
   FindAllAdminFilters,
   FindPublishedFilters,
@@ -32,6 +33,33 @@ function isForeignKeyViolation(error: unknown): boolean {
     (error as { code: unknown }).code === 'P2003'
   );
 }
+
+const adminTabInclude = {
+  author: {
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      status: true,
+      role: true,
+    },
+  },
+  song: {
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      deletedAt: true,
+      artist: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
+    },
+  },
+} as const;
 
 @Injectable()
 export class PrismaTabRepository implements ITabRepository {
@@ -55,6 +83,13 @@ export class PrismaTabRepository implements ITabRepository {
         },
       },
     });
+  }
+
+  async findAdminById(id: string): Promise<AdminTabRow | null> {
+    return this.prisma.tab.findUnique({
+      where: { id },
+      include: adminTabInclude,
+    }) as Promise<AdminTabRow | null>;
   }
 
   async findPublished(filters: FindPublishedFilters): Promise<PaginatedResult<TabWithAuthor>> {
@@ -175,6 +210,11 @@ export class PrismaTabRepository implements ITabRepository {
           instrument: data.instrument as Tab['instrument'],
           difficulty: data.difficulty as Tab['difficulty'],
           titleOverride: data.titleOverride ?? null,
+          status: data.status ?? TabStatusEnum.DRAFT,
+          submittedAt: data.submittedAt ?? null,
+          publishedAt: data.publishedAt ?? null,
+          moderatedByUserId: data.moderatedByUserId ?? null,
+          moderationNotes: data.moderationNotes ?? null,
           versionNumber: 1,
         },
       });
@@ -210,6 +250,7 @@ export class PrismaTabRepository implements ITabRepository {
         ...(data.instrument !== undefined && { instrument: data.instrument as Tab['instrument'] }),
         ...(data.difficulty !== undefined && { difficulty: data.difficulty as Tab['difficulty'] }),
         ...(data.titleOverride !== undefined && { titleOverride: data.titleOverride }),
+        ...(data.moderationNotes !== undefined && { moderationNotes: data.moderationNotes }),
       },
     });
   }
@@ -221,7 +262,7 @@ export class PrismaTabRepository implements ITabRepository {
     });
   }
 
-  async findAllAdmin(filters: FindAllAdminFilters): Promise<OffsetPaginatedResult<TabWithAuthor>> {
+  async findAllAdmin(filters: FindAllAdminFilters): Promise<OffsetPaginatedResult<AdminTabRow>> {
     const where: TabWhereInput & { includeDeleted?: boolean } = {};
 
     if (filters.status !== undefined) {
@@ -239,12 +280,12 @@ export class PrismaTabRepository implements ITabRepository {
         orderBy: { createdAt: 'desc' },
         skip: (filters.page - 1) * filters.pageSize,
         take: filters.pageSize,
-        include: { author: { select: { displayName: true } } },
+        include: adminTabInclude,
       }),
       this.prisma.tab.count({ where: where as TabWhereInput }),
     ]);
 
-    return { items, totalCount };
+    return { items: items as AdminTabRow[], totalCount };
   }
 
   async countByStatus(status: TabStatus): Promise<number> {

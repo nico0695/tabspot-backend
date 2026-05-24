@@ -13,10 +13,27 @@ describe('SongsPublicController', () => {
 
   beforeEach((): void => {
     service = {
+      getAllForSelect: jest.fn(),
       listSongs: jest.fn(),
     } as unknown as jest.Mocked<SongService>;
 
     controller = new SongsPublicController(service);
+  });
+
+  describe('all', () => {
+    it('delegates to songService.getAllForSelect and returns the result', async (): Promise<void> => {
+      const response = [
+        { id: '00000000-0000-0000-0000-000000000201', title: 'Hey Jude' },
+        { id: '00000000-0000-0000-0000-000000000202', title: 'Let It Be' },
+      ];
+      service.getAllForSelect.mockResolvedValue(response);
+
+      const result = await controller.all();
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(service.getAllForSelect).toHaveBeenCalledWith();
+      expect(result).toBe(response);
+    });
   });
 
   describe('list', () => {
