@@ -4,7 +4,7 @@
 
 TabSpot backend follows a **Pragmatic Refined Hybrid + Selective Hexagonal** architecture.
 
-The system is organized around **Feature-Driven Development**: each domain (Catalog, Tabs, Auth, Admin, Search) lives in a self-contained NestJS module under `src/modules/`. Modules own their controllers, services, repositories, DTOs, and use-cases.
+The system is organized around **Feature-Driven Development**: each domain (Catalog, Tabs, Auth, Admin, Search) lives in a self-contained NestJS module under `src/modules/`. Modules own their controllers, services, repositories, DTOs, and use-cases. When a module grows but still represents one clear bounded context, it should first be reorganized internally through subfeatures before being split into multiple Nest modules.
 
 Hexagonal patterns (Ports & Adapters) are applied **selectively**, only where an external dependency boundary justifies the abstraction cost. `ITabRepository` decouples tab persistence from Prisma. `IIdentityProvider` decouples authentication from Supabase. Other modules use Prisma directly through repositories without a formal port layer.
 
@@ -70,6 +70,28 @@ AppModule
 ```
 
 Global modules (`AppConfigModule`, `PrismaModule`, `ThrottlerModule`) are registered once at the root and available everywhere without explicit imports. Feature modules declare their dependencies through standard NestJS `imports` arrays.
+
+---
+
+## Internal Module Growth
+
+Feature modules are allowed to grow internally without becoming multiple Nest modules when the domain boundary is still clear.
+
+Preferred rule:
+
+- Keep one Nest module while the bounded context remains cohesive.
+- Split application code internally by subfeature when controllers, services, DTOs, and tests become hard to navigate in a flat layout.
+- Keep `shared/` minimal and neutral. It should hold only cross-cutting contracts or helpers that are not entity-specific.
+- Keep `repositories/` as a module-level persistence layer when the repositories still belong to one bounded context.
+- Prefer explicit file names and explicit imports over local generic names or barrel indirection.
+- Split into multiple Nest modules only when ownership, dependencies, or domain responsibilities clearly separate.
+
+Example:
+
+- `CatalogModule` keeps one Nest module boundary.
+- Internal application code is organized into `artists/` and `songs/`.
+- Shared neutral query contracts live in `shared/`.
+- Persistence stays under `repositories/`.
 
 ---
 
