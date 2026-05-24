@@ -139,4 +139,11 @@ jobs:
       - name: Health check
         run: |
           ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "curl -fsS http://127.0.0.1:4004/api/v1/health >/dev/null"
+            "for i in \$(seq 1 30); do \
+              if curl -fsS http://127.0.0.1:4004/api/v1/health >/dev/null; then \
+                exit 0; \
+              fi; \
+              sleep 2; \
+            done; \
+            echo 'Health check failed after waiting for the API to become ready.'; \
+            exit 1"
