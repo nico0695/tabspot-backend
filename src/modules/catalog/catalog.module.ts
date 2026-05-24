@@ -2,13 +2,13 @@ import { Module } from '@nestjs/common';
 
 import { TabsModule } from '@modules/tabs/tabs.module';
 
-import { ArtistService } from './artist.service';
-import { ArtistsPublicController } from './artists-public.controller';
+import { ArtistService } from './artists/artist.service';
+import { ArtistsPublicController } from './artists/artists-public.controller';
 import { ArtistRepository } from './repositories/artist.repository';
 import { SongGenreRepository } from './repositories/song-genre.repository';
 import { SongRepository } from './repositories/song.repository';
-import { SongService } from './song.service';
-import { SongsPublicController } from './songs-public.controller';
+import { SongService } from './songs/song.service';
+import { SongsPublicController } from './songs/songs-public.controller';
 
 @Module({
   imports: [TabsModule],

@@ -11,7 +11,7 @@ Modules export only what other modules need. Internal services, repositories, an
 ```
 src/modules/
 ├── auth/          # Identity verification and user management
-├── catalog/       # Artists and songs (public browsing)
+├── catalog/       # Artists and songs (public catalog bounded context)
 ├── genres/        # Genre listing
 ├── tabs/          # Tab lifecycle (CRUD, submission, moderation, ratings)
 ├── admin/         # Administrative operations
@@ -57,19 +57,39 @@ src/modules/
 
 **Exports:** ArtistService, SongService, ArtistRepository, SongRepository, SongGenreRepository
 
-**Responsibility:** Serves the public artist and song catalog with related metadata, tab counts, and genre associations.
+**Responsibility:** Serves the public artist and song catalog with related metadata, tab counts, and genre associations, while also exposing catalog persistence services needed by admin catalog CRUD.
+
+**Internal structure:**
+
+```text
+src/modules/catalog/
+├── artists/       # Artist-facing controller, service, DTOs, tests
+├── songs/         # Song-facing controller, service, DTOs, tests
+├── shared/        # Minimal neutral shared contracts only
+├── repositories/  # Module-level persistence layer
+└── catalog.module.ts
+```
+
+**Structure rules:**
+
+- `artists/` and `songs/` own their application-layer files and tests.
+- DTOs are grouped by intent under `dto/queries` and `dto/responses`.
+- `shared/` stays minimal and should not absorb entity-specific contracts.
+- `repositories/` stays common to the module, with one repository per entity or significant relation.
+- Explicit file names and explicit imports are preferred over barrels.
 
 **Key files:**
 
 | File | Role |
 |------|------|
-| `artist.service.ts` | Artist listing, detail by slug, select data |
-| `song.service.ts` | Song listing with filters, detail by slug with tabs |
+| `artists/artist.service.ts` | Artist listing, detail by slug, select data |
+| `songs/song.service.ts` | Song listing with filters, detail by slug with tabs |
 | `repositories/artist.repository.ts` | Cursor pagination, slug lookup, offset admin pagination |
 | `repositories/song.repository.ts` | Complex filtering (artist, genre, search), tab count aggregation |
 | `repositories/song-genre.repository.ts` | Atomic genre replacement for songs |
-| `controllers/artists-public.controller.ts` | GET /artists/all, GET /artists, GET /artists/:slug |
-| `controllers/songs-public.controller.ts` | GET /songs, GET /songs/:slug |
+| `artists/artists-public.controller.ts` | GET /artists/all, GET /artists, GET /artists/:slug |
+| `songs/songs-public.controller.ts` | GET /songs/all, GET /songs, GET /songs/:slug |
+| `shared/dto/queries/pagination-query.schema.ts` | Minimal shared query contract reused across catalog |
 
 **Endpoints:**
 
@@ -78,10 +98,13 @@ src/modules/
 | GET | `/artists/all` | All artists (select format) |
 | GET | `/artists` | Paginated artist listing |
 | GET | `/artists/:slug` | Artist detail by slug |
+| GET | `/songs/all` | All songs (select format) |
 | GET | `/songs` | Paginated song listing with filters |
 | GET | `/songs/:slug` | Song detail by slug (includes tabs) |
 
 **Depends on:** PrismaModule, TabsModule (for published tab data)
+
+**Growth note:** `CatalogModule` is the reference pattern for a single FDD module that grows internally through subfeatures before being split into multiple Nest modules.
 
 ---
 
@@ -186,7 +209,7 @@ DRAFT --> PENDING --> PUBLISHED
 | `services/admin.service.ts` | Tab moderation, user role/status changes, dashboard metrics |
 | `services/admin-catalog.service.ts` | Artist/Genre/Song CRUD with slug generation and deletion guards |
 | `controllers/admin-dashboard.controller.ts` | GET /admin/dashboard |
-| `controllers/admin-tabs.controller.ts` | GET/POST /admin/tabs/* |
+| `controllers/admin-tabs.controller.ts` | Full admin tab CRUD plus moderation endpoints |
 | `controllers/admin-users.controller.ts` | GET/PATCH /admin/users/* |
 | `controllers/admin-artists.controller.ts` | CRUD /admin/artists/* |
 | `controllers/admin-genres.controller.ts` | CRUD /admin/genres/* |
@@ -195,12 +218,15 @@ DRAFT --> PENDING --> PUBLISHED
 **Business rules:**
 
 - Admin cannot change their own role or status (self-change protection).
+- Admin tabs detail can retrieve soft-deleted tabs; public tab reads still hide soft-deleted records.
+- Admin tab create uses the current admin as author; later patch does not allow song/author reassignment.
+- Admin tab list/detail embed lightweight `song` and enriched `author` relation payloads for admin UI consumption.
 - Artist deletion blocked if artist has active songs.
 - Genre deletion blocked if genre has song associations.
 - Song deletion blocked if song has published tabs.
 - Slug auto-generated from name, uniqueness enforced.
 
-**Endpoints:** 13 admin endpoints covering dashboard, tabs, users, artists, genres, and songs.
+**Endpoints:** 17 admin endpoints covering dashboard, tabs, users, artists, genres, and songs.
 
 **Depends on:** AuthModule, TabsModule, CatalogModule, GenresModule
 

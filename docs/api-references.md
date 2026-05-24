@@ -108,6 +108,7 @@ Query params: `page` (1-indexed), `pageSize` (default 20, max 500 for admin).
 
 | Method | Path           | Description                                                                     |
 |--------|----------------|---------------------------------------------------------------------------------|
+| GET    | `/songs/all`   | All songs for select. Returns `[{ id, title }]`                                 |
 | GET    | `/songs`       | Paginated song list. Query: `cursor`, `limit`, `artistId`, `genreId`, `search`  |
 | GET    | `/songs/:slug` | Song detail with artist, genres, and published tabs                             |
 
@@ -210,7 +211,11 @@ All admin endpoints require AuthGuard + RolesGuard with the `ADMIN` role. Admin 
 
 | Method | Path                        | Description                                               |
 |--------|-----------------------------|-----------------------------------------------------------|
-| GET    | `/admin/tabs`               | All tabs. Query: `page`, `pageSize`, `status`, `includeDeleted` |
+| GET    | `/admin/tabs`               | All tabs. Query: `page`, `pageSize`, `status`, `includeDeleted`. Rows include embedded `song` and `author` summaries |
+| GET    | `/admin/tabs/:id`           | Admin tab detail. Returns soft-deleted tabs too, with embedded `song` and `author` |
+| POST   | `/admin/tabs`               | Create tab as current admin author. Body: `{ songId, content, tabType, instrument, difficulty, titleOverride?, status?, moderationNotes? }` |
+| PATCH  | `/admin/tabs/:id`           | Update tab fields and optionally set `status` directly. `songId` and author do not change here |
+| DELETE | `/admin/tabs/:id`           | Soft-delete any tab, including published ones |
 | POST   | `/admin/tabs/:id/publish`   | Publish pending tab (PENDING -> PUBLISHED)                |
 | POST   | `/admin/tabs/:id/reject`    | Reject pending tab. Body: `{ notes: string }`             |
 

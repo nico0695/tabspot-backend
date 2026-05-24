@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
-import type { ArtistDetailResponse } from './dto/artist-detail-response.schema';
-import type { ArtistSelectResponse } from './dto/artist-select-response.schema';
-import { ListArtistsResponse } from './dto/list-artists-response.schema';
-import { ListArtistsParams } from './dto/list-artists.schema';
-import { ArtistRepository } from './repositories/artist.repository';
-import { SongRepository } from './repositories/song.repository';
+import { ListArtistsParams } from './dto/queries/list-artists.schema';
+import type { ArtistDetailResponse } from './dto/responses/artist-detail-response.schema';
+import { ListArtistsResponse } from './dto/responses/list-artists-response.schema';
+import type { ArtistSelectResponse } from './dto/responses/artist-select-response.schema';
+import { ArtistRepository } from '../repositories/artist.repository';
+import { SongRepository } from '../repositories/song.repository';
 
 @Injectable()
 export class ArtistService {

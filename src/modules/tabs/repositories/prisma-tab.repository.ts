@@ -87,7 +87,7 @@ export class PrismaTabRepository implements ITabRepository {
 
   async findAdminById(id: string): Promise<AdminTabRow | null> {
     return this.prisma.tab.findUnique({
-      where: { id },
+      where: { id, includeDeleted: true } as never,
       include: adminTabInclude,
     }) as Promise<AdminTabRow | null>;
   }
