@@ -1,8 +1,3 @@
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../dist/generated/prisma/client');
-});
-
 import { buildSoftDeleteExtension } from '../prisma.service';
 
 type MockDelegate = {

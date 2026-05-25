@@ -12,10 +12,13 @@ const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   testEnvironment: 'node',
   moduleNameMapper: {
+    '^@src/generated/prisma/client$': '<rootDir>/dist/generated/prisma/client.js',
     '^@src/(.*)$': '<rootDir>/src/$1',
     '^@modules/(.*)$': '<rootDir>/src/modules/$1',
     '^@common/(.*)$': '<rootDir>/src/common/$1',
     '^@config/(.*)$': '<rootDir>/src/config/$1',
+    '^@test/(.*)$': '<rootDir>/test/$1',
+    '^@admin/(.*)$': '<rootDir>/src/modules/admin/$1',
   },
   collectCoverageFrom: ['src/**/*.ts'],
   coveragePathIgnorePatterns: [

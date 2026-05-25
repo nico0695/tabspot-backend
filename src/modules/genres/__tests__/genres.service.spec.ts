@@ -1,11 +1,6 @@
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client');
-});
-
 import { GenresService } from '../genres.service';
 import { GenreRepository } from '../repositories/genre.repository';
-import { makeGenre } from '../../../../test/factories/make-genre';
+import { makeGenre } from '@test/factories/make-genre';
 
 describe('GenresService', () => {
   let service: GenresService;

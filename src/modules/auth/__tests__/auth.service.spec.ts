@@ -1,9 +1,3 @@
-// Redirect the generated Prisma client to the pre-compiled CJS dist so ts-jest can load it
-// (the source uses import.meta.url which breaks under CJS).
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client.js');
-});
 jest.mock(
   '@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs',
   () => {

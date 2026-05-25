@@ -1,11 +1,6 @@
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../dist/generated/prisma/client');
-});
-
 import { GenresPublicController } from '../genres-public.controller';
 import { GenresService } from '../genres.service';
-import { makeGenre } from '../../../../test/factories/make-genre';
+import { makeGenre } from '@test/factories/make-genre';
 
 describe('GenresPublicController', () => {
   let controller: GenresPublicController;

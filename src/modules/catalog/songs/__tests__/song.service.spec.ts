@@ -1,15 +1,10 @@
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../../dist/generated/prisma/client');
-});
-
 import { NotFoundException } from '@nestjs/common';
 
 import { TabsService } from '@modules/tabs/tabs.service';
 
 import { SongService } from '../song.service';
 import { SongRepository } from '../../repositories/song.repository';
-import { makeSong } from '../../../../../test/factories/make-song';
+import { makeSong } from '@test/factories/make-song';
 
 describe('SongService', () => {
   let service: SongService;
