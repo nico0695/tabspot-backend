@@ -202,18 +202,56 @@ DRAFT --> PENDING --> PUBLISHED
 
 **All endpoints require:** AuthGuard + RolesGuard(ADMIN)
 
+**Structure (internal subfeatures):**
+
+```text
+src/modules/admin/
+├── tabs/                  # Admin tab CRUD + moderation
+│   ├── controllers/
+│   ├── services/
+│   └── dto/{requests,queries,responses}
+├── users/                 # Admin user management
+│   ├── controllers/
+│   ├── services/
+│   └── dto/{requests,queries,responses}
+├── dashboard/             # Admin dashboard metrics
+│   ├── controllers/
+│   ├── services/
+│   └── dto/responses
+├── catalog-management/    # Admin management of artists/genres/songs
+│   ├── artists/
+│   ├── genres/
+│   ├── songs/
+│   └── shared/
+└── shared/
+    └── dto/responses      # Cross-subfeature admin response contracts
+```
+
 **Key files:**
 
 | File | Role |
 |------|------|
-| `services/admin.service.ts` | Tab moderation, user role/status changes, dashboard metrics |
-| `services/admin-catalog.service.ts` | Artist/Genre/Song CRUD with slug generation and deletion guards |
-| `controllers/admin-dashboard.controller.ts` | GET /admin/dashboard |
-| `controllers/admin-tabs.controller.ts` | Full admin tab CRUD plus moderation endpoints |
-| `controllers/admin-users.controller.ts` | GET/PATCH /admin/users/* |
-| `controllers/admin-artists.controller.ts` | CRUD /admin/artists/* |
-| `controllers/admin-genres.controller.ts` | CRUD /admin/genres/* |
-| `controllers/admin-songs.controller.ts` | CRUD /admin/songs/* |
+| `tabs/services/admin-tabs.service.ts` | Tab moderation + admin tab CRUD orchestration |
+| `users/services/admin-users.service.ts` | User role/status changes + paginated listing |
+| `dashboard/services/admin-dashboard.service.ts` | Dashboard metrics aggregation |
+| `catalog-management/artists/services/admin-artists.service.ts` | Artist CRUD rules and slug conflict checks |
+| `catalog-management/genres/services/admin-genres.service.ts` | Genre CRUD rules and association guards |
+| `catalog-management/songs/services/admin-songs.service.ts` | Song CRUD rules, genre validation, and published-tab deletion guard |
+| `tabs/controllers/admin-tabs.controller.ts` | Full admin tab CRUD plus moderation endpoints |
+| `users/controllers/admin-users.controller.ts` | GET/PATCH /admin/users/* |
+| `dashboard/controllers/admin-dashboard.controller.ts` | GET /admin/dashboard |
+| `catalog-management/artists/controllers/admin-artists.controller.ts` | CRUD /admin/artists/* |
+| `catalog-management/genres/controllers/admin-genres.controller.ts` | CRUD /admin/genres/* |
+| `catalog-management/songs/controllers/admin-songs.controller.ts` | CRUD /admin/songs/* |
+| `shared/dto/responses/admin-paginated.schema.ts` | Shared admin offset-paginated response contracts |
+
+**Admin growth guardrails:**
+
+- Keep one `AdminModule` while the bounded context remains cohesive.
+- New DTO files must be created under the owning subfeature (`requests`, `queries`, or `responses`), never in a flat global DTO folder.
+- Keep `shared/` minimal and cross-cutting only.
+- Prefer explicit imports; do not introduce barrel files for admin DTOs/responses.
+- Cross-subfeature collaboration must use explicit shared contracts, not lateral imports of sibling internals.
 
 **Business rules:**
 

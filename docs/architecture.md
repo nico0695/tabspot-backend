@@ -117,6 +117,13 @@ Routes: `/v1/admin/*`
 
 Requires `AuthGuard` + `RolesGuard(ADMIN)`. Full CRUD over catalog entities, moderation queue for pending tabs, user management. Offset-based pagination with `totalCount` for admin UI tables.
 
+Internal organization rule:
+
+- `AdminModule` stays as one Nest module boundary.
+- Internal application code is split by subfeature: `tabs`, `users`, `dashboard`, `catalog-management`, plus minimal `shared`.
+- DTO contracts are grouped by intent (`requests`, `queries`, `responses`) inside each subfeature.
+- Cross-subfeature shared response contracts (e.g., paginated wrappers) live in `admin/shared`.
+
 ---
 
 ## Key Architectural Patterns
@@ -138,6 +145,8 @@ The cursor is sort-aware: it remembers the sort column and direction, ensuring s
 ### 3. Offset Pagination
 
 Used by admin endpoints. Traditional `page`/`pageSize` parameters with a `totalCount` in the response for UI pagination controls. Less efficient than cursor pagination but acceptable given admin traffic volumes and the need for random page access.
+
+Admin pagination response schemas are centralized in `admin/shared/dto/responses/admin-paginated.schema.ts`, while entity-specific response schemas remain owned by each admin subfeature.
 
 ### 4. Tab Status Machine
 
@@ -206,6 +215,12 @@ Configurable without code changes: logging level, CORS origins, rate limit thres
 ```
 
 Configured in `tsconfig.json`, `.swcrc`, and `jest.config.ts`. Use these instead of deep relative imports.
+
+## Import Guardrails
+
+- Prefer explicit imports over barrels for feature DTOs and response schemas.
+- Avoid lateral imports between sibling subfeature internals.
+- Keep `shared/` intentionally small; if a contract is entity-specific, it belongs to that entity subfeature.
 
 ---
 
