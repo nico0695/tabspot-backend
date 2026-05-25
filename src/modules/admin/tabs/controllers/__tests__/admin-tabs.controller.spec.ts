@@ -1,7 +1,3 @@
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../../../dist/generated/prisma/client');
-});
 jest.mock(
   '@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs',
   () => {

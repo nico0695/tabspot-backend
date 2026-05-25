@@ -1,11 +1,6 @@
 // Redirect the generated Prisma client source (which uses import.meta.url and is incompatible
 // with ts-jest CJS mode) to the pre-compiled CJS dist output for all modules in this test.
 
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../../dist/generated/prisma/client');
-});
-
 // Prisma v7's compiled client uses ESM-only .mjs WASM modules at runtime.
 // Redirect all .mjs WASM imports to their CJS .js equivalents so Jest (CJS mode) can load them.
 jest.mock(

@@ -34,8 +34,8 @@ import { CreateArtistDto } from '../dto/requests/create-artist.dto';
 import { ListAdminArtistsDto } from '../dto/queries/list-admin-artists.dto';
 import { UpdateArtistDto } from '../dto/requests/update-artist.dto';
 import { AdminArtistResponseDto } from '../dto/responses/admin-artist-response.schema';
-import type { PaginatedResult } from '../../shared/pagination.types';
-import { AdminPaginatedArtistsDto } from '../../../shared/dto/responses/admin-paginated.schema';
+import type { PaginatedResult } from '@admin/catalog-management/shared/pagination.types';
+import { AdminPaginatedArtistsDto } from '@admin/shared/dto/responses/admin-paginated.schema';
 import { AdminArtistsService } from '../services/admin-artists.service';
 
 @ApiTags('admin')

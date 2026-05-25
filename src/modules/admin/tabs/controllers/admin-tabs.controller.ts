@@ -40,7 +40,7 @@ import {
   AdminTabResponseDto,
   AdminTabWithRelationsResponseDto,
 } from '../dto/responses/admin-tab-response.schema';
-import { AdminPaginatedTabsDto } from '../../shared/dto/responses/admin-paginated.schema';
+import { AdminPaginatedTabsDto } from '@admin/shared/dto/responses/admin-paginated.schema';
 import { AdminTabsService } from '../services/admin-tabs.service';
 
 function toAdminTabResponse(tab: AdminTabRow): AdminTabWithRelationsResponse {

@@ -31,7 +31,7 @@ import { ChangeStatusDto } from '../dto/requests/change-status.dto';
 import { ChangeRoleDto } from '../dto/requests/change-role.dto';
 import { ListAdminUsersDto } from '../dto/queries/list-admin-users.dto';
 import { AdminUserResponseDto } from '../dto/responses/admin-user-response.schema';
-import { AdminPaginatedUsersDto } from '../../shared/dto/responses/admin-paginated.schema';
+import { AdminPaginatedUsersDto } from '@admin/shared/dto/responses/admin-paginated.schema';
 import { AdminUsersService } from '../services/admin-users.service';
 
 @ApiTags('admin')

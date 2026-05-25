@@ -17,7 +17,7 @@ import { GenreRepository } from '@modules/genres/repositories/genre.repository';
 import type { CreateSongInput } from '../dto/requests/create-song.schema';
 import type { ListAdminSongsParams } from '../dto/queries/list-admin-songs.schema';
 import type { UpdateSongInput } from '../dto/requests/update-song.schema';
-import type { PaginatedResult } from '../../shared/pagination.types';
+import type { PaginatedResult } from '@admin/catalog-management/shared/pagination.types';
 
 @Injectable()
 export class AdminSongsService {

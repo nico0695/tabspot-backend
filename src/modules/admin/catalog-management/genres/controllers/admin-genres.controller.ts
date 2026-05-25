@@ -34,8 +34,8 @@ import { CreateGenreDto } from '../dto/requests/create-genre.dto';
 import { ListAdminGenresDto } from '../dto/queries/list-admin-genres.dto';
 import { UpdateGenreDto } from '../dto/requests/update-genre.dto';
 import { AdminGenreResponseDto } from '../dto/responses/admin-genre-response.schema';
-import type { PaginatedResult } from '../../shared/pagination.types';
-import { AdminPaginatedGenresDto } from '../../../shared/dto/responses/admin-paginated.schema';
+import type { PaginatedResult } from '@admin/catalog-management/shared/pagination.types';
+import { AdminPaginatedGenresDto } from '@admin/shared/dto/responses/admin-paginated.schema';
 import { AdminGenresService } from '../services/admin-genres.service';
 
 @ApiTags('admin')

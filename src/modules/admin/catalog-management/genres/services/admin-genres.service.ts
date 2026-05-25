@@ -8,7 +8,7 @@ import { GenreRepository } from '@modules/genres/repositories/genre.repository';
 import type { CreateGenreInput } from '../dto/requests/create-genre.schema';
 import type { ListAdminGenresParams } from '../dto/queries/list-admin-genres.schema';
 import type { UpdateGenreInput } from '../dto/requests/update-genre.schema';
-import type { PaginatedResult } from '../../shared/pagination.types';
+import type { PaginatedResult } from '@admin/catalog-management/shared/pagination.types';
 
 @Injectable()
 export class AdminGenresService {

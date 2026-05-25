@@ -34,8 +34,8 @@ import { CreateSongDto } from '../dto/requests/create-song.dto';
 import { ListAdminSongsDto } from '../dto/queries/list-admin-songs.dto';
 import { UpdateSongDto } from '../dto/requests/update-song.dto';
 import { AdminSongResponseDto } from '../dto/responses/admin-song-response.schema';
-import type { PaginatedResult } from '../../shared/pagination.types';
-import { AdminPaginatedSongsDto } from '../../../shared/dto/responses/admin-paginated.schema';
+import type { PaginatedResult } from '@admin/catalog-management/shared/pagination.types';
+import { AdminPaginatedSongsDto } from '@admin/shared/dto/responses/admin-paginated.schema';
 import { AdminSongsService } from '../services/admin-songs.service';
 
 @ApiTags('admin')

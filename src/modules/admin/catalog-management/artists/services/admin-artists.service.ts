@@ -8,7 +8,7 @@ import { ArtistRepository } from '@modules/catalog/repositories/artist.repositor
 import type { CreateArtistInput } from '../dto/requests/create-artist.schema';
 import type { ListAdminArtistsParams } from '../dto/queries/list-admin-artists.schema';
 import type { UpdateArtistInput } from '../dto/requests/update-artist.schema';
-import type { PaginatedResult } from '../../shared/pagination.types';
+import type { PaginatedResult } from '@admin/catalog-management/shared/pagination.types';
 
 @Injectable()
 export class AdminArtistsService {

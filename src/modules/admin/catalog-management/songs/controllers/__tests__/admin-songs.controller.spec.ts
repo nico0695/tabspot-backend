@@ -1,7 +1,3 @@
-jest.mock('@src/generated/prisma/client', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
-  return require('../../../../../../../dist/generated/prisma/client');
-});
 jest.mock(
   '@prisma/client/runtime/query_compiler_fast_bg.postgresql.mjs',
   () => {
@@ -24,7 +20,7 @@ import type { SongWithArtistAndGenres } from '@modules/catalog/repositories/song
 
 import { AdminSongsController } from '../admin-songs.controller';
 import type { AdminSongsService } from '../../services/admin-songs.service';
-import type { PaginatedResult } from '../../../shared/pagination.types';
+import type { PaginatedResult } from '@admin/catalog-management/shared/pagination.types';
 
 function makeSong(overrides: Partial<Song> = {}): SongWithArtistAndGenres {
   return {
