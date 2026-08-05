@@ -51,7 +51,7 @@ const CorsOriginsSchema = z.preprocess(
 );
 
 const RequestBodyLimitSchema = z.preprocess(
-  (value) => value ?? '256kb',
+  (value) => value ?? '15mb',
   z
     .string()
     .trim()

@@ -54,6 +54,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    const clientErrorStatus = exposedClientErrorStatus(exception);
+    if (clientErrorStatus !== null) {
+      const message =
+        exception instanceof Error && exception.message.length > 0
+          ? exception.message
+          : 'Request rejected';
+      const body: ErrorBody = {
+        error: { code: statusToCode(clientErrorStatus), message },
+      };
+      response.status(clientErrorStatus).json(body);
+      return;
+    }
+
     this.logger.error(
       { req: { id: (request as Request & { id?: string }).id } },
       exception instanceof Error ? exception.stack : String(exception),
@@ -70,6 +83,32 @@ export class HttpExceptionFilter implements ExceptionFilter {
   }
 }
 
+/**
+ * Detects http-errors-shaped exceptions thrown outside Nest's exception hierarchy
+ * (e.g. the Express body parser's `PayloadTooLargeError`): a numeric `status`/`statusCode`
+ * in the 4xx range with `expose: true`. Returns the status, or null when the shape
+ * does not match (those keep falling through to the 500 INTERNAL_ERROR branch).
+ */
+function exposedClientErrorStatus(exception: unknown): number | null {
+  if (typeof exception !== 'object' || exception === null) {
+    return null;
+  }
+  const candidate = exception as { status?: unknown; statusCode?: unknown; expose?: unknown };
+  if (candidate.expose !== true) {
+    return null;
+  }
+  const status =
+    typeof candidate.status === 'number'
+      ? candidate.status
+      : typeof candidate.statusCode === 'number'
+        ? candidate.statusCode
+        : null;
+  if (status === null || status < 400 || status > 499) {
+    return null;
+  }
+  return status;
+}
+
 function statusToCode(status: number): string {
   const map: Record<number, string> = {
     400: 'BAD_REQUEST',
@@ -78,6 +117,7 @@ function statusToCode(status: number): string {
     404: 'NOT_FOUND',
     405: 'METHOD_NOT_ALLOWED',
     409: 'CONFLICT',
+    413: 'PAYLOAD_TOO_LARGE',
     422: 'VALIDATION_FAILED',
     429: 'RATE_LIMIT_EXCEEDED',
     500: 'INTERNAL_ERROR',
