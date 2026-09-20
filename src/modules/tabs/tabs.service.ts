@@ -23,6 +23,7 @@ import type {
   UpdateStatusMeta,
 } from './ports/tab-repository.port';
 import { TAB_REPOSITORY } from './ports/tab-repository.port';
+import { normalizeAdminStatus } from './domain/normalize-admin-status';
 import { CreateTabUseCase } from './use-cases/create-tab.use-case';
 import type { CreateTabInput } from './use-cases/create-tab.use-case';
 import { PublishTabUseCase } from './use-cases/publish-tab.use-case';
@@ -206,52 +207,6 @@ export class TabsService {
     moderationNotes?: string | null,
     existingTab?: Pick<Tab, 'submittedAt' | 'publishedAt'>,
   ): { status: TabStatus; meta: UpdateStatusMeta } {
-    const targetStatus = status ?? TabStatus.DRAFT;
-    const now = new Date();
-    const submittedAt = existingTab?.submittedAt ?? now;
-    const publishedAt = existingTab?.publishedAt ?? now;
-
-    switch (targetStatus) {
-      case TabStatus.DRAFT:
-        return {
-          status: targetStatus,
-          meta: {
-            submittedAt: null,
-            publishedAt: null,
-            moderatedByUserId: null,
-            moderationNotes: null,
-          },
-        };
-      case TabStatus.PENDING:
-        return {
-          status: targetStatus,
-          meta: {
-            submittedAt,
-            publishedAt: null,
-            moderatedByUserId: null,
-            moderationNotes: null,
-          },
-        };
-      case TabStatus.PUBLISHED:
-        return {
-          status: targetStatus,
-          meta: {
-            submittedAt,
-            publishedAt,
-            moderatedByUserId: adminUserId,
-            moderationNotes: null,
-          },
-        };
-      case TabStatus.REJECTED:
-        return {
-          status: targetStatus,
-          meta: {
-            submittedAt,
-            publishedAt: null,
-            moderatedByUserId: adminUserId,
-            moderationNotes: moderationNotes ?? null,
-          },
-        };
-    }
+    return normalizeAdminStatus(status, adminUserId, moderationNotes, existingTab);
   }
 }

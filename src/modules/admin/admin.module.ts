@@ -13,6 +13,8 @@ import { AdminSongsController } from './catalog-management/songs/controllers/adm
 import { AdminDashboardController } from './dashboard/controllers/admin-dashboard.controller';
 import { AdminSongsService } from './catalog-management/songs/services/admin-songs.service';
 import { AdminDashboardService } from './dashboard/services/admin-dashboard.service';
+import { AdminBulkImportController } from './import/controllers/admin-bulk-import.controller';
+import { BulkImportService } from './import/services/bulk-import.service';
 import { AdminTabsService } from './tabs/services/admin-tabs.service';
 import { AdminTabsController } from './tabs/controllers/admin-tabs.controller';
 import { AdminUsersController } from './users/controllers/admin-users.controller';
@@ -27,6 +29,7 @@ import { AdminUsersService } from './users/services/admin-users.service';
     AdminArtistsController,
     AdminGenresController,
     AdminSongsController,
+    AdminBulkImportController,
   ],
   providers: [
     AdminTabsService,
@@ -35,6 +38,7 @@ import { AdminUsersService } from './users/services/admin-users.service';
     AdminArtistsService,
     AdminGenresService,
     AdminSongsService,
+    BulkImportService,
   ],
 })
 export class AdminModule {}

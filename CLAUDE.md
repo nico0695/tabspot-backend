@@ -71,7 +71,7 @@ Defined in `tsconfig.json` — use these instead of deep relative imports:
 
 Prettier config (`.prettierrc`): single quotes, trailing commas, 100-col width, semicolons.
 
-<!-- sdd-lite:start generated_at="2026-04-17T00:00:00Z" version="0.1" package_root="sdd-lite" -->
+<!-- sdd-lite:start generated_at="2026-08-04T23:02:31Z" version="0.1" package_root="sdd-lite" -->
 You are a development assistant with access to `sdd-lite`, a structured change workflow for bounded repo changes.
 
 ## When to use sdd-lite
@@ -98,39 +98,42 @@ If the user declines or ignores the suggestion, proceed without sdd-lite.
 
 ## When sdd-lite is active
 
-Use the canonical orchestration contract at `sdd-lite/orchestrator/SDDL-ORCHESTRATOR.md` as the source of truth.
+Read and follow the canonical orchestration contract at `sdd-lite/orchestrator/SDDL-ORCHESTRATOR.md`.
+That contract is the single source of truth for delegation rules, handoff envelopes, result processing, routing, approvals, and all operational behavior.
+
 Use canonical skills under `sdd-lite/skills/`, runtime standards at `./sdd-lite/skill-catalog.md`, and schemas under `sdd-lite/schemas/`.
 
 Rules:
 - Run bootstrap preflight first. If bootstrap files are missing or unusable, stop and run `sddl-init`.
-- Keep the orchestrator thin. Prefer reading only `./sdd-lite/openspec/config.yaml`, `state.yaml`, `./sdd-lite/skill-catalog.md`, and artifact digests before choosing the next step.
 - Recover context from persisted artifacts before asking the user for missing facts.
-- Preserve checkpoints, approvals, resume behavior, and lifecycle semantics from the canonical contracts.
 - Persisted artifacts must remain in English. Chat interaction may be `es` or `en`.
-- Treat `./sdd-lite/skill-catalog.md` as the runtime standards registry. Reuse its compact rules instead of rediscovering project conventions in every stage.
 
-## Delegation Policy
+## Platform: Claude Code
 
-Default to fresh-worker delegation for real stage work.
+### Agent tool delegation
 
-- Inline only local routing decisions that need at most 3 repo files.
-- Delegate to `sddl-deep-explorer` when routing or planning needs 4 or more files, or when a bounded unknown blocks the next safe step.
-- Delegate `sddl-proposal-spec`, `sddl-design-plan`, `sddl-executor`, and `sddl-qa-review` as fresh workers by default.
-- Do not perform multi-file edits inline in the orchestrator.
-- Do not perform builds, installs, test suites, or broad validation inline in the orchestrator.
-- Do not delegate per file; delegate per phase or per approved execution stage.
+Delegation uses the native **Agent tool**. Each stage worker receives a fresh context via a dedicated Agent call. Pass the compact handoff envelope as the agent prompt. Do not use the Skill tool or Task tool for stage delegation.
 
-## Delegation Envelope
+`interactive` / `auto` controls pauses between stages only. It does not grant permission to bypass `stage_approval`, skip mandatory checkpoints, or omit approval gates for code-touching stages. These are always required regardless of execution mode.
 
-When launching a stage worker, pass a compact handoff:
+### Parallelization
 
-- stage id
-- `change_name`, objective, and selected route
-- approved scope or blocked question
-- artifact paths, not large artifact bodies
-- short artifact digests
-- `## Project Standards (auto-resolved)` copied from `./sdd-lite/skill-catalog.md`
-- expected result fields: `status`, `executive_summary`, `artifacts`, `next_action`, `open_risks`
+Parallelize only independent read-only tasks (e.g., `sddl-deep-explorer` alongside a non-writing stage) or workers with fully disjoint write scopes. Never parallelize workers that write to overlapping artifact paths.
 
-Do not paste the full README or broad repo summaries into each worker unless recovery truly requires it.
+### Review protocols
+
+`sddl-code-review` lenses and `sddl-judgment-day` judges run as parallel read-only Agent workers per the Review Worker Envelope in `SDDL-ORCHESTRATOR.md`. Launch judgment-day judges in one parallel batch, wait for both results before merging, and never let one judge see the other's output. Review workers return `findings` only; the orchestrator writes `review-ledger.md`.
+
+### Worker boundaries
+
+Child workers launched via Agent tool must not launch additional sub-agents. If a worker discovers work beyond its assigned scope, it must return `partial` or `blocked` with a `next_action` — not a new Agent call.
+
+### Fallback if Agent tool is unavailable
+
+If Agent tool delegation is denied or unavailable (e.g., blocked by user permissions):
+
+- State visibly that stages will run without fresh-context isolation.
+- Persist `state.yaml` immediately after each stage completes before continuing.
+- Apply all canonical result-processing, routing, and approval rules.
+- When a mandatory delegation trigger fires, explain the degradation before continuing inline.
 <!-- sdd-lite:end -->

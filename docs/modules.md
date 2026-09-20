@@ -16,7 +16,8 @@ src/modules/
 ├── tabs/          # Tab lifecycle (CRUD, submission, moderation, ratings)
 ├── admin/         # Administrative operations
 ├── search/        # Full-text search
-└── health/        # Service health check
+├── health/        # Service health check (liveness + readiness)
+└── metrics/       # Prometheus metrics — served at /metrics (outside /api prefix)
 ```
 
 ---
@@ -315,6 +316,26 @@ src/modules/admin/
 
 ---
 
+## Metrics Module
+
+**Path:** `src/modules/metrics/`
+
+**Exports:** None (internal)
+
+**Responsibility:** Exposes a Prometheus-compatible `/metrics` scrape endpoint.
+Intentionally served **outside** the global `/api` prefix (configured via
+`setGlobalPrefix('api', { exclude: ['metrics'] })`).
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/metrics` | Prometheus metrics scrape (no auth, no versioning) |
+
+**Depends on:** None
+
+---
+
 ## Shared Infrastructure
 
 **Path:** `src/common/`
@@ -326,6 +347,7 @@ Not a module, but provides cross-cutting concerns used by all feature modules.
 | `guards/` | AuthGuard, OptionalAuthGuard, RolesGuard |
 | `decorators/` | @CurrentUser(), @Roles() |
 | `filters/` | HttpExceptionFilter (global error handler) |
+| `interceptors/` | HttpMetricsInterceptor, RequestLoggingInterceptor |
 | `middlewares/` | RequestIdMiddleware (request tracing) |
 | `utils/` | Cursor pagination encoding, slugify |
 | `constants/` | Throttle rate configs (WRITE: 20/min, SEARCH: 30/min) |

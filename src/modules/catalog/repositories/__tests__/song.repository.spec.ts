@@ -196,6 +196,40 @@ describe('SongRepository (integration)', () => {
     ).rejects.toMatchObject({ response: { code: 'INVALID_CURSOR' } });
   });
 
+  describe('restore', () => {
+    it('restores a soft-deleted song (regression: update must pass the includeDeleted marker)', async (): Promise<void> => {
+      const artist = await createArtist(prisma, 'the-beatles');
+      await createSong(prisma, artist.id, 'hey-jude', 'Hey Jude');
+      await prisma.$executeRaw`UPDATE "songs" SET "deleted_at" = NOW() WHERE "slug" = 'hey-jude'`;
+
+      const deleted = await repository.findByArtistAndSlug(artist.id, 'hey-jude');
+      expect(deleted).not.toBeNull();
+      expect(deleted?.deletedAt).not.toBeNull();
+
+      // Without the includeDeleted marker the soft-delete extension appends
+      // deletedAt: null to the update where and this call throws P2025.
+      const restored = await repository.restore((deleted as { id: string }).id);
+
+      expect(restored.deletedAt).toBeNull();
+    });
+
+    it('makes the restored song visible to soft-delete-filtered queries again', async (): Promise<void> => {
+      const artist = await createArtist(prisma, 'the-beatles');
+      await createSong(prisma, artist.id, 'hey-jude', 'Hey Jude');
+      await createSong(prisma, artist.id, 'let-it-be', 'Let It Be');
+      await prisma.$executeRaw`UPDATE "songs" SET "deleted_at" = NOW() WHERE "slug" = 'hey-jude'`;
+
+      const before = await repository.findAll();
+      expect(before.map((s) => s.slug)).not.toContain('hey-jude');
+
+      const deleted = await repository.findByArtistAndSlug(artist.id, 'hey-jude');
+      await repository.restore((deleted as { id: string }).id);
+
+      const after = await repository.findAll();
+      expect(after.map((s) => s.slug)).toContain('hey-jude');
+    });
+  });
+
   it('applies q filter with case-insensitive contains on title', async (): Promise<void> => {
     const artist = await createArtist(prisma, 'the-beatles');
     await createSong(prisma, artist.id, 'hey-jude', 'Hey Jude');

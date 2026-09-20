@@ -166,6 +166,15 @@ export class SongRepository {
     });
   }
 
+  async restore(id: string): Promise<Song> {
+    // includeDeleted is load-bearing: the soft-delete extension also filters update
+    // operations, so without the marker this update would never match a deleted row.
+    return this.prisma.song.update({
+      where: { id, includeDeleted: true } as never,
+      data: { deletedAt: null },
+    });
+  }
+
   async listOffset({
     page,
     pageSize,
