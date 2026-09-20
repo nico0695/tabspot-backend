@@ -105,7 +105,7 @@ function makeInput(overrides: Partial<BulkImportInput> = {}): BulkImportInput {
 // ── mock harness ──────────────────────────────────────────────────────────
 
 interface TxMock {
-  $queryRaw: jest.Mock;
+  $executeRaw: jest.Mock;
   song: { findFirst: jest.Mock; create: jest.Mock; update: jest.Mock };
   songGenre: { createMany: jest.Mock };
   tab: { aggregate: jest.Mock; findMany: jest.Mock; create: jest.Mock };
@@ -113,7 +113,7 @@ interface TxMock {
 
 function makeTx(): TxMock {
   return {
-    $queryRaw: jest.fn().mockResolvedValue([{}]),
+    $executeRaw: jest.fn().mockResolvedValue(1),
     song: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockImplementation((args: { data: Partial<Song> }): Promise<Song> => {
@@ -386,11 +386,14 @@ describe('BulkImportService', (): void => {
     it('takes the per-song advisory xact lock before reading the max version (D1)', async (): Promise<void> => {
       await service.bulkImport(makeInput(), ADMIN_ID);
 
-      expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
-      const [strings, ...values] = tx.$queryRaw.mock.calls[0] as [readonly string[], ...unknown[]];
+      expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+      const [strings, ...values] = tx.$executeRaw.mock.calls[0] as [
+        readonly string[],
+        ...unknown[],
+      ];
       expect(strings.join('?')).toContain('pg_advisory_xact_lock(hashtext(');
       expect(values).toEqual(['song-created']);
-      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
         tx.tab.aggregate.mock.invocationCallOrder[0],
       );
     });

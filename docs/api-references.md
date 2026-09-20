@@ -235,6 +235,12 @@ All admin endpoints require AuthGuard + RolesGuard with the `ADMIN` role. Admin 
 | POST   | `/admin/tabs/:id/publish`   | Publish pending tab (PENDING -> PUBLISHED)                |
 | POST   | `/admin/tabs/:id/reject`    | Reject pending tab. Body: `{ notes: string }`             |
 
+### Bulk Import
+
+| Method | Path                              | Description                                                                                                                                 |
+|--------|-----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| POST   | `/admin/tabs/bulk-import`         | Batch import tabs for one artist. Body: `{ artist: { id?, name, sortName? }, defaults: { status, difficulty, instrument }, songs: [...] }`. Returns 200 even with per-song failures — see `BULK_IMPORT_CONTRACT_RESPONSE.md` for full contract |
+
 ### User Management
 
 | Method | Path                        | Description                                                |

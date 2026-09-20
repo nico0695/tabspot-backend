@@ -222,7 +222,7 @@ export class BulkImportService {
 
     // D1: per-song advisory xact lock (auto-released at commit/rollback) taken before
     // sequencing, so concurrent bulk imports cannot assign duplicate version numbers.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${songRow.id}::text))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${songRow.id}::text))`;
 
     // Max versionNumber INCLUDING soft-deleted tabs (D1): deleted tabs keep their numbers,
     // so numbering stays monotonic and restores can never collide.
