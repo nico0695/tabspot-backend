@@ -211,6 +211,10 @@ src/modules/admin/
 │   ├── controllers/
 │   ├── services/
 │   └── dto/{requests,queries,responses}
+├── import/                # Bulk tab import
+│   ├── controllers/
+│   ├── services/
+│   └── dto/{requests,responses}
 ├── users/                 # Admin user management
 │   ├── controllers/
 │   ├── services/
@@ -233,12 +237,14 @@ src/modules/admin/
 | File | Role |
 |------|------|
 | `tabs/services/admin-tabs.service.ts` | Tab moderation + admin tab CRUD orchestration |
+| `import/services/bulk-import.service.ts` | Bulk tab import orchestration (artist resolution, per-song transactions, advisory lock, content dedupe) |
 | `users/services/admin-users.service.ts` | User role/status changes + paginated listing |
 | `dashboard/services/admin-dashboard.service.ts` | Dashboard metrics aggregation |
 | `catalog-management/artists/services/admin-artists.service.ts` | Artist CRUD rules and slug conflict checks |
 | `catalog-management/genres/services/admin-genres.service.ts` | Genre CRUD rules and association guards |
 | `catalog-management/songs/services/admin-songs.service.ts` | Song CRUD rules, genre validation, and published-tab deletion guard |
 | `tabs/controllers/admin-tabs.controller.ts` | Full admin tab CRUD plus moderation endpoints |
+| `import/controllers/admin-bulk-import.controller.ts` | POST /admin/tabs/bulk-import |
 | `users/controllers/admin-users.controller.ts` | GET/PATCH /admin/users/* |
 | `dashboard/controllers/admin-dashboard.controller.ts` | GET /admin/dashboard |
 | `catalog-management/artists/controllers/admin-artists.controller.ts` | CRUD /admin/artists/* |
