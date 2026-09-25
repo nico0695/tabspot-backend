@@ -16,7 +16,8 @@ src/modules/
 ├── tabs/          # Tab lifecycle (CRUD, submission, moderation, ratings)
 ├── admin/         # Administrative operations
 ├── search/        # Full-text search
-└── health/        # Service health check
+├── health/        # Service health check (liveness + readiness)
+└── metrics/       # Prometheus metrics — served at /metrics (outside /api prefix)
 ```
 
 ---
@@ -210,6 +211,10 @@ src/modules/admin/
 │   ├── controllers/
 │   ├── services/
 │   └── dto/{requests,queries,responses}
+├── import/                # Bulk tab import
+│   ├── controllers/
+│   ├── services/
+│   └── dto/{requests,responses}
 ├── users/                 # Admin user management
 │   ├── controllers/
 │   ├── services/
@@ -232,12 +237,14 @@ src/modules/admin/
 | File | Role |
 |------|------|
 | `tabs/services/admin-tabs.service.ts` | Tab moderation + admin tab CRUD orchestration |
+| `import/services/bulk-import.service.ts` | Bulk tab import orchestration (artist resolution, per-song transactions, advisory lock, content dedupe) |
 | `users/services/admin-users.service.ts` | User role/status changes + paginated listing |
 | `dashboard/services/admin-dashboard.service.ts` | Dashboard metrics aggregation |
 | `catalog-management/artists/services/admin-artists.service.ts` | Artist CRUD rules and slug conflict checks |
 | `catalog-management/genres/services/admin-genres.service.ts` | Genre CRUD rules and association guards |
 | `catalog-management/songs/services/admin-songs.service.ts` | Song CRUD rules, genre validation, and published-tab deletion guard |
 | `tabs/controllers/admin-tabs.controller.ts` | Full admin tab CRUD plus moderation endpoints |
+| `import/controllers/admin-bulk-import.controller.ts` | POST /admin/tabs/bulk-import |
 | `users/controllers/admin-users.controller.ts` | GET/PATCH /admin/users/* |
 | `dashboard/controllers/admin-dashboard.controller.ts` | GET /admin/dashboard |
 | `catalog-management/artists/controllers/admin-artists.controller.ts` | CRUD /admin/artists/* |
@@ -315,6 +322,26 @@ src/modules/admin/
 
 ---
 
+## Metrics Module
+
+**Path:** `src/modules/metrics/`
+
+**Exports:** None (internal)
+
+**Responsibility:** Exposes a Prometheus-compatible `/metrics` scrape endpoint.
+Intentionally served **outside** the global `/api` prefix (configured via
+`setGlobalPrefix('api', { exclude: ['metrics'] })`).
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/metrics` | Prometheus metrics scrape (no auth, no versioning) |
+
+**Depends on:** None
+
+---
+
 ## Shared Infrastructure
 
 **Path:** `src/common/`
@@ -326,6 +353,7 @@ Not a module, but provides cross-cutting concerns used by all feature modules.
 | `guards/` | AuthGuard, OptionalAuthGuard, RolesGuard |
 | `decorators/` | @CurrentUser(), @Roles() |
 | `filters/` | HttpExceptionFilter (global error handler) |
+| `interceptors/` | HttpMetricsInterceptor, RequestLoggingInterceptor |
 | `middlewares/` | RequestIdMiddleware (request tracing) |
 | `utils/` | Cursor pagination encoding, slugify |
 | `constants/` | Throttle rate configs (WRITE: 20/min, SEARCH: 30/min) |

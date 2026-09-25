@@ -148,6 +148,37 @@ describe('ArtistRepository (integration)', () => {
     });
   });
 
+  describe('restore', () => {
+    it('restores a soft-deleted artist (regression: update must pass the includeDeleted marker)', async (): Promise<void> => {
+      await seedArtists(prisma, 1);
+      await prisma.$executeRaw`UPDATE "artists" SET "deleted_at" = NOW() WHERE "slug" = 'artist-1'`;
+
+      const deleted = await repository.findBySlug('artist-1');
+      expect(deleted).not.toBeNull();
+      expect(deleted?.deletedAt).not.toBeNull();
+
+      // Without the includeDeleted marker the soft-delete extension appends
+      // deletedAt: null to the update where and this call throws P2025.
+      const restored = await repository.restore((deleted as { id: string }).id);
+
+      expect(restored.deletedAt).toBeNull();
+    });
+
+    it('makes the restored artist visible to soft-delete-filtered queries again', async (): Promise<void> => {
+      await seedArtists(prisma, 2);
+      await prisma.$executeRaw`UPDATE "artists" SET "deleted_at" = NOW() WHERE "slug" = 'artist-1'`;
+
+      const before = await repository.listCursor({ limit: 10 });
+      expect(before.items.map((a) => a.slug)).not.toContain('artist-1');
+
+      const deleted = await repository.findBySlug('artist-1');
+      await repository.restore((deleted as { id: string }).id);
+
+      const after = await repository.listCursor({ limit: 10 });
+      expect(after.items.map((a) => a.slug)).toContain('artist-1');
+    });
+  });
+
   it('applies q filter with case-insensitive contains on name', async (): Promise<void> => {
     const delegate = (prisma as unknown as Record<string, PrismaArtistDelegate>)['artist'];
     await delegate.create({ data: { name: 'The Beatles', slug: 'the-beatles' } });

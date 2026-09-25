@@ -112,12 +112,15 @@ describe('EnvSchema', () => {
   it('defaults and normalizes REQUEST_BODY_LIMIT', (): void => {
     const defaultResult = EnvSchema.safeParse(makeRawEnv());
     const explicitResult = EnvSchema.safeParse(makeRawEnv({ REQUEST_BODY_LIMIT: '1MB' }));
+    const overrideResult = EnvSchema.safeParse(makeRawEnv({ REQUEST_BODY_LIMIT: '256kb' }));
 
     expect(defaultResult.success).toBe(true);
     expect(explicitResult.success).toBe(true);
-    if (defaultResult.success && explicitResult.success) {
-      expect(defaultResult.data.REQUEST_BODY_LIMIT).toBe('256kb');
+    expect(overrideResult.success).toBe(true);
+    if (defaultResult.success && explicitResult.success && overrideResult.success) {
+      expect(defaultResult.data.REQUEST_BODY_LIMIT).toBe('15mb');
       expect(explicitResult.data.REQUEST_BODY_LIMIT).toBe('1mb');
+      expect(overrideResult.data.REQUEST_BODY_LIMIT).toBe('256kb');
     }
   });
 

@@ -45,6 +45,11 @@ describe('Swagger (e2e)', () => {
         delete: expect.any(Object) as object,
       }),
     );
+    expect(body.paths['/api/v1/admin/tabs/bulk-import']).toEqual(
+      expect.objectContaining({
+        post: expect.any(Object) as object,
+      }),
+    );
   });
 
   afterAll(async (): Promise<void> => {

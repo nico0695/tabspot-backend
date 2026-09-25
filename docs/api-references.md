@@ -22,6 +22,9 @@ Complete endpoint reference for the TabSpot REST API.
 | Write operations | 20 req / 60s  |
 | Search           | 30 req / 60s  |
 
+The global limit is env-tunable (`THROTTLE_LIMIT` / `THROTTLE_TTL`, defaults shown).
+Write (20) and Search (30) are fixed constants in `@common/constants/throttle`.
+
 ---
 
 ## Error Response Format
@@ -53,6 +56,15 @@ All errors return a consistent envelope:
 | RATE_LIMIT_EXCEEDED  | 429         |
 | INTERNAL_ERROR       | 500         |
 
+This table is the **HTTP status → code fallback** used when an exception carries no
+explicit code. It is **not a closed enum**: services throw domain-specific codes
+that are passed through verbatim (e.g. `TAB_NOT_FOUND`, `OWNERSHIP_VIOLATION`,
+`INVALID_STATUS_TRANSITION`, `INVALID_CURSOR`).
+
+Validation/schema failures return **422 `VALIDATION_FAILED`** with a `fields` array.
+**400 `BAD_REQUEST`** is reserved for malformed-but-not-schema input (invalid UUID via
+`ParseUUIDPipe`, invalid pagination cursor → `INVALID_CURSOR`).
+
 ---
 
 ## Pagination
@@ -75,7 +87,7 @@ Query params: `page` (1-indexed), `pageSize` (default 20, max 500 for admin).
 ```json
 {
   "data": [],
-  "meta": { "page": 1, "pageSize": 20, "totalCount": 142, "totalPages": 8 }
+  "pageInfo": { "page": 1, "pageSize": 20, "totalCount": 142, "totalPages": 8 }
 }
 ```
 
@@ -85,9 +97,13 @@ Query params: `page` (1-indexed), `pageSize` (default 20, max 500 for admin).
 
 ### Health
 
-| Method | Path      | Description                                   |
-|--------|-----------|-----------------------------------------------|
-| GET    | `/health` | Returns `{ status: "ok", timestamp, uptime }` |
+| Method | Path            | Description                                       |
+|--------|-----------------|---------------------------------------------------|
+| GET    | `/health`       | Liveness. Returns `{ status: "ok", timestamp, uptime }` |
+| GET    | `/health/ready` | Readiness probe (checks dependencies)             |
+
+> `GET /metrics` (Prometheus scrape) is served at the **root**, intentionally
+> outside the `/api/v1` prefix.
 
 ### Genres
 
@@ -218,6 +234,12 @@ All admin endpoints require AuthGuard + RolesGuard with the `ADMIN` role. Admin 
 | DELETE | `/admin/tabs/:id`           | Soft-delete any tab, including published ones |
 | POST   | `/admin/tabs/:id/publish`   | Publish pending tab (PENDING -> PUBLISHED)                |
 | POST   | `/admin/tabs/:id/reject`    | Reject pending tab. Body: `{ notes: string }`             |
+
+### Bulk Import
+
+| Method | Path                              | Description                                                                                                                                 |
+|--------|-----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| POST   | `/admin/tabs/bulk-import`         | Batch import tabs for one artist. Body: `{ artist: { id?, name, sortName? }, defaults: { status, difficulty, instrument }, songs: [...] }`. Returns 200 even with per-song failures — see `BULK_IMPORT_CONTRACT_RESPONSE.md` for full contract |
 
 ### User Management
 
